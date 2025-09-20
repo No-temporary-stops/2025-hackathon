@@ -326,12 +326,22 @@ const Messages: React.FC = () => {
                         }
                         secondary={
                           <Box>
-                            <Typography variant="body2" color="text.secondary" noWrap>
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary" 
+                              noWrap
+                              sx={{ 
+                                fontStyle: conversation.lastMessage.content === '開始對話' ? 'italic' : 'normal',
+                                opacity: conversation.lastMessage.content === '開始對話' ? 0.7 : 1
+                              }}
+                            >
                               {conversation.lastMessage.content}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatMessageTime(conversation.lastMessage.createdAt)}
-                            </Typography>
+                            {conversation.lastMessage.content !== '開始對話' && (
+                              <Typography variant="caption" color="text.secondary">
+                                {formatMessageTime(conversation.lastMessage.createdAt)}
+                              </Typography>
+                            )}
                           </Box>
                         }
                       />
@@ -340,7 +350,7 @@ const Messages: React.FC = () => {
                 </List>
               ) : (
                 <Alert severity="info" sx={{ m: 2 }}>
-                  暫無對話記錄
+                  此學期暫無其他用戶可以聊天
                 </Alert>
               )}
             </Box>
