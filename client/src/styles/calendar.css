@@ -1,0 +1,247 @@
+/* Calendar 樣式調整以匹配 Material-UI 主題 */
+
+.rbc-calendar {
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif !important;
+  background: transparent;
+  border: none;
+}
+
+.rbc-month-view,
+.rbc-time-view {
+  border: none;
+  background: transparent;
+}
+
+.rbc-header {
+  padding: 12px 8px !important;
+  background: #f5f5f5 !important;
+  border: none !important;
+  font-weight: 600 !important;
+  color: #1976d2 !important;
+  font-size: 14px !important;
+  text-align: center;
+}
+
+.rbc-date-cell {
+  padding: 8px !important;
+  border: 1px solid #e0e0e0 !important;
+  min-height: 80px;
+  background: white;
+}
+
+.rbc-date-cell:hover {
+  background: #f5f5f5 !important;
+}
+
+.rbc-date-cell.rbc-off-range {
+  background: #fafafa !important;
+  color: #bdbdbd !important;
+}
+
+.rbc-date-cell.rbc-now {
+  background: rgba(25, 118, 210, 0.1) !important;
+}
+
+.rbc-date-cell.rbc-today {
+  background: rgba(25, 118, 210, 0.15) !important;
+}
+
+.rbc-button-link {
+  color: #1976d2 !important;
+  font-weight: 600 !important;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.rbc-button-link:hover {
+  background: rgba(25, 118, 210, 0.1) !important;
+  text-decoration: none;
+}
+
+.rbc-event {
+  border-radius: 6px !important;
+  border: none !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  margin: 1px !important;
+}
+
+.rbc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+}
+
+.rbc-event-label {
+  display: none;
+}
+
+.rbc-row-content {
+  z-index: 1;
+}
+
+.rbc-addons-dnd .rbc-event {
+  cursor: pointer;
+}
+
+.rbc-slot-selection {
+  background: rgba(25, 118, 210, 0.1) !important;
+}
+
+.rbc-day-slot .rbc-event {
+  border: 1px solid rgba(255,255,255,0.3) !important;
+}
+
+.rbc-time-slot {
+  border-top: 1px solid #e0e0e0 !important;
+  border-bottom: none !important;
+}
+
+.rbc-time-gutter {
+  background: #fafafa !important;
+  border-right: 1px solid #e0e0e0 !important;
+}
+
+.rbc-time-header {
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+.rbc-time-content {
+  border-top: none !important;
+}
+
+.rbc-current-time-indicator {
+  background: #f44336 !important;
+  height: 2px !important;
+}
+
+/* 週視圖和日視圖樣式 */
+.rbc-time-view .rbc-header {
+  border-bottom: 1px solid #e0e0e0 !important;
+  background: white !important;
+}
+
+.rbc-day-bg {
+  background: white !important;
+  border-left: 1px solid #e0e0e0 !important;
+}
+
+.rbc-day-bg.rbc-today {
+  background: rgba(25, 118, 210, 0.05) !important;
+}
+
+/* 議程視圖樣式 */
+.rbc-agenda-view {
+  border: none !important;
+}
+
+.rbc-agenda-table {
+  background: white !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+.rbc-agenda-view table thead > tr > th {
+  background: #1976d2 !important;
+  color: white !important;
+  padding: 16px !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+
+.rbc-agenda-view table tbody > tr > td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.rbc-agenda-view table tbody > tr:hover {
+  background: #f5f5f5 !important;
+}
+
+.rbc-agenda-view table tbody > tr:last-child > td {
+  border-bottom: none !important;
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  font-weight: 600 !important;
+  color: #1976d2 !important;
+}
+
+.rbc-agenda-event-cell {
+  font-size: 14px !important;
+}
+
+/* 彈出視窗樣式 */
+.rbc-overlay {
+  background: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
+  padding: 8px 0 !important;
+}
+
+.rbc-overlay-header {
+  background: #1976d2 !important;
+  color: white !important;
+  padding: 12px 16px !important;
+  margin: -8px 0 8px 0 !important;
+  font-weight: 600 !important;
+}
+
+.rbc-event-content {
+  padding: 4px 8px !important;
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+  .rbc-calendar {
+    font-size: 12px !important;
+  }
+  
+  .rbc-header {
+    padding: 8px 4px !important;
+    font-size: 12px !important;
+  }
+  
+  .rbc-date-cell {
+    min-height: 60px !important;
+    padding: 4px !important;
+  }
+  
+  .rbc-event {
+    font-size: 10px !important;
+    padding: 2px 4px !important;
+  }
+  
+  .rbc-button-link {
+    padding: 2px 4px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* 自定義優先級顏色 */
+.rbc-event-high-priority {
+  background: linear-gradient(135deg, #f44336, #d32f2f) !important;
+}
+
+.rbc-event-medium-priority {
+  background: linear-gradient(135deg, #ff9800, #f57c00) !important;
+}
+
+.rbc-event-low-priority {
+  background: linear-gradient(135deg, #2196f3, #1976d2) !important;
+}
+
+.rbc-event-completed {
+  background: linear-gradient(135deg, #4caf50, #388e3c) !important;
+  opacity: 0.8;
+  text-decoration: line-through;
+}

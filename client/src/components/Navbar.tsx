@@ -19,6 +19,7 @@ import {
   Forum,
   Dashboard,
   ExitToApp,
+  Event,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,6 +115,18 @@ const Navbar: React.FC = () => {
             討論區
           </Button>
 
+          <Button
+            color="inherit"
+            startIcon={<Event />}
+            onClick={() => handleNavigation('/calendar')}
+            sx={{ 
+              bgcolor: isActive('/calendar') ? 'rgba(255,255,255,0.1)' : 'transparent',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            行事曆
+          </Button>
+
           <IconButton color="inherit">
             <Badge badgeContent={0} color="error">
               <Notifications />
@@ -204,6 +217,10 @@ const Navbar: React.FC = () => {
         <MenuItem onClick={() => handleNavigation('/discussions')}>
           <Forum sx={{ mr: 1 }} />
           討論區
+        </MenuItem>
+        <MenuItem onClick={() => handleNavigation('/calendar')}>
+          <Event sx={{ mr: 1 }} />
+          行事曆
         </MenuItem>
         <MenuItem onClick={() => handleNavigation('/profile')}>
           <AccountCircle sx={{ mr: 1 }} />

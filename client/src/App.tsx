@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Messages from './pages/Messages';
 import Discussions from './pages/Discussions';
 import Profile from './pages/Profile';
+import Calendar from './pages/Calendar';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
@@ -45,6 +46,10 @@ function App() {
         <Route
           path="/profile"
           element={user ? <Profile /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/calendar"
+          element={user ? <Calendar /> : <Navigate to="/login" />}
         />
         <Route
           path="/"
