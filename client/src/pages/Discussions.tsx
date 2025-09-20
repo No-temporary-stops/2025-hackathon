@@ -31,7 +31,6 @@ import {
   Search,
   Add,
   MoreVert,
-  PushPin,
   Visibility,
   Comment,
   FilterList,
@@ -106,7 +105,7 @@ const Discussions: React.FC = () => {
     }
   );
 
-  // Set first active semester as default
+  // Set current active semester automatically
   useEffect(() => {
     if (semestersData && !selectedSemester) {
       const activeSemester = semestersData.find((s: any) => s.isCurrentlyActive);
@@ -207,7 +206,7 @@ const Discussions: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4" fontWeight="bold">
           討論區
         </Typography>
@@ -220,27 +219,17 @@ const Discussions: React.FC = () => {
         </Button>
       </Box>
 
-      {/* Semester Selection */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          選擇學期
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {semestersData?.map((semester: any) => (
-            <Chip
-              key={semester._id}
-              label={`${semester.name} (${semester.schoolYear})`}
-              color={semester._id === selectedSemester ? 'primary' : 'default'}
-              variant={semester._id === selectedSemester ? 'filled' : 'outlined'}
-              onClick={() => setSelectedSemester(semester._id)}
-              sx={{
-                bgcolor: semester.isCurrentlyActive ? 'success.light' : undefined,
-                color: semester.isCurrentlyActive ? 'success.contrastText' : undefined,
-              }}
-            />
-          ))}
+      {/* Current Semester Display */}
+      {currentSemester && (
+        <Box sx={{ mb: 4 }}>
+          <Alert severity={currentSemester.isCurrentlyActive ? 'success' : 'info'}>
+            {currentSemester.name} ({currentSemester.schoolYear})
+            {currentSemester.isCurrentlyActive && ' - 當前學期'}
+          </Alert>
         </Box>
-      </Paper>
+      )}
+
+
 
       {!selectedSemester ? (
         <Alert severity="info">
@@ -251,7 +240,7 @@ const Discussions: React.FC = () => {
           {/* Search and Filter */}
           <Paper sx={{ p: 2, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={8}>
                 <TextField
                   fullWidth
                   placeholder="搜尋討論串..."
@@ -266,7 +255,7 @@ const Discussions: React.FC = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
                   <InputLabel>分類</InputLabel>
                   <Select
@@ -283,11 +272,7 @@ const Discussions: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} md={3}>
-                <Alert severity={currentSemester?.isCurrentlyActive ? 'success' : 'info'}>
-                  {currentSemester?.isCurrentlyActive ? '當前活躍學期' : '已結束學期'}
-                </Alert>
-              </Grid>
+
             </Grid>
           </Paper>
 
@@ -308,7 +293,6 @@ const Discussions: React.FC = () => {
                       sx={{
                         borderBottom: 1,
                         borderColor: 'divider',
-                        bgcolor: discussion.isPinned ? 'action.hover' : 'transparent',
                       }}
                     >
                       <ListItemAvatar>
@@ -322,9 +306,6 @@ const Discussions: React.FC = () => {
                             <Typography variant="h6" sx={{ flex: 1 }}>
                               {discussion.title}
                             </Typography>
-                            {discussion.isPinned && (
-                              <PushPin color="primary" />
-                            )}
                             <Chip
                               label={getCategoryText(discussion.category)}
                               size="small"

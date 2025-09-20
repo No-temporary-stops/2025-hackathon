@@ -289,11 +289,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDayClick = (day: number) => {
-    const dayEvents = getEventsForDay(day);
-    if (dayEvents.length > 0) {
-      setSelectedDay(day);
-      setDayEventsOpen(true);
-    }
+    setSelectedDay(day);
+    setDayEventsOpen(true);
   };
 
   const handleEventClick = (event: any) => {
@@ -336,9 +333,9 @@ const Dashboard: React.FC = () => {
     setContextMenu(null);
   };
 
-  const handleAddEvent = () => {
+  const handleAddEvent = (day?: number) => {
     const newEvent = {
-      date: contextMenu?.day || 1,
+      date: day || contextMenu?.day || 1,
       title: '',
       color: 'info.main',
       type: 'meeting',
@@ -753,14 +750,32 @@ const Dashboard: React.FC = () => {
                         {events
                           .filter(event => event.date >= new Date().getDate())
                           .map((event, index) => (
-                            <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'primary.light', borderRadius: 1 }}>
+                            <Box 
+                              key={index} 
+                              onClick={() => handleEventClick(event)}
+                              sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 1, 
+                                mb: 1, 
+                                p: 1, 
+                                bgcolor: 'primary.light', 
+                                borderRadius: 1,
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  bgcolor: 'primary.main',
+                                  color: 'primary.contrastText'
+                                }
+                              }}
+                            >
                               <Box sx={{ width: 8, height: 8, bgcolor: event.color, borderRadius: '50%' }} />
-                              <Box>
+                              <Box sx={{ flex: 1 }}>
                                 <Typography variant="body2" fontWeight="medium">{event.title}</Typography>
                                 <Typography variant="caption" color="text.secondary">
                                   9月{event.date}日 {event.type === 'exam' ? '09:00' : event.type === 'meeting' ? '14:00' : '10:00'}
                                 </Typography>
                               </Box>
+                              <ChevronRight sx={{ opacity: 0.7 }} />
                             </Box>
                           ))}
                       </Box>
@@ -815,7 +830,32 @@ const Dashboard: React.FC = () => {
             <ChevronRight color="action" />
           </Box>
         )) : null}
+        {selectedDay !== null && events.filter(event => event.date === selectedDay).length === 0 && (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              這一天沒有活動
+            </Typography>
+          </Box>
+        )}
       </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCloseDayEvents} color="primary">
+          關閉
+        </Button>
+        <Button 
+          onClick={() => {
+            handleCloseDayEvents();
+            if (selectedDay !== null) {
+              handleAddEvent(selectedDay);
+            }
+          }}
+          variant="contained"
+          color="primary"
+          startIcon={<Add />}
+        >
+          新增活動
+        </Button>
+      </DialogActions>
     </Dialog>
 
     {/* Event Detail Dialog */}
@@ -892,9 +932,6 @@ const Dashboard: React.FC = () => {
         >
           刪除
         </Button>
-        <Button variant="contained" color="primary">
-          加入行事曆
-        </Button>
       </DialogActions>
     </Dialog>
 
@@ -909,7 +946,7 @@ const Dashboard: React.FC = () => {
           : undefined
       }
     >
-      <MenuItem onClick={handleAddEvent}>
+      <MenuItem onClick={() => handleAddEvent()}>
         <Add sx={{ mr: 1 }} />
         新增活動
       </MenuItem>
