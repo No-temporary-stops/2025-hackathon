@@ -67,6 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Failed to fetch user profile:', error);
       localStorage.removeItem('token');
       delete api.defaults.headers.common['Authorization'];
+      setUser(null); // 確保用戶狀態被清除
     } finally {
       setLoading(false);
     }

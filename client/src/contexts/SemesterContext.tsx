@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useQuery } from 'react-query';
 import { api } from '../services/api';
+import { useAuth } from './AuthContext';
 
 export interface Semester {
   _id: string;
@@ -47,13 +48,18 @@ interface SemesterProviderProps {
 
 export const SemesterProvider: React.FC<SemesterProviderProps> = ({ children }) => {
   const [selectedSemester, setSelectedSemesterState] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  // Fetch user's semesters
+  // Fetch user's semesters (only when user is logged in)
   const { data: semestersData, isLoading } = useQuery(
     'semesters',
     async () => {
       const response = await api.get('/semesters/my-semesters');
       return response.data.semesters;
+    },
+    {
+      enabled: !!user, // Only run query when user is logged in
+      retry: false, // Don't retry on failure
     }
   );
 

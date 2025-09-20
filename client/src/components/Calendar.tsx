@@ -325,7 +325,7 @@ const Calendar: React.FC<CalendarProps> = ({ semesterId }) => {
               {viewMode === 'todo' ? '事件' : '行事曆'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              今日：{new Date().toLocaleDateString('zh-TW', {
+              今日：{today.toLocaleDateString('zh-TW', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
@@ -505,6 +505,7 @@ const Calendar: React.FC<CalendarProps> = ({ semesterId }) => {
                 const todayString = formatDateToString(today);
                 const dateString = date ? formatDateToString(date) : '';
                 const isToday = date && dateString === todayString;
+                console.log(dateString, todayString);
                 
                 return (
                   <Grid item xs={12/7} key={index}>
