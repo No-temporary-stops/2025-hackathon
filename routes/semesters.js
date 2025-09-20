@@ -154,7 +154,7 @@ router.post('/:semesterId/add-participant', auth, [
 
     // Check if current user is a teacher in this semester
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isTeacher) {
@@ -204,7 +204,7 @@ router.delete('/:semesterId/remove-participant/:userId', auth, async (req, res) 
 
     // Check if current user is a teacher in this semester
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isTeacher) {
@@ -237,7 +237,7 @@ router.put('/:semesterId/archive', auth, async (req, res) => {
 
     // Check if current user is a teacher in this semester
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isTeacher) {

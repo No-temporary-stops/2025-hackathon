@@ -18,7 +18,7 @@ router.get('/semester/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -127,7 +127,7 @@ router.get('/teachers/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -162,7 +162,7 @@ router.get('/parents/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -197,7 +197,7 @@ router.get('/students/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {

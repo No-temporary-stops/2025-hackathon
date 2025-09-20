@@ -28,7 +28,7 @@ router.post('/create', auth, [
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -73,7 +73,7 @@ router.get('/semester/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -130,7 +130,7 @@ router.get('/:discussionId', auth, async (req, res) => {
     // Check if user is a participant in the semester
     const semester = await Semester.findById(discussion.semester);
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -173,7 +173,7 @@ router.post('/:discussionId/reply', auth, [
     // Check if user is a participant in the semester
     const semester = await Semester.findById(discussion.semester);
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -215,7 +215,7 @@ router.get('/search/:semesterId', auth, async (req, res) => {
     }
 
     const isParticipant = semester.participants.some(
-      p => p.user.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {
@@ -268,7 +268,7 @@ router.put('/:discussionId/pin', auth, async (req, res) => {
     // Check if user is a teacher in the semester
     const semester = await Semester.findById(discussion.semester);
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isTeacher) {
@@ -301,7 +301,7 @@ router.put('/:discussionId/close', auth, async (req, res) => {
     // Check if user is a teacher in the semester
     const semester = await Semester.findById(discussion.semester);
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isTeacher) {
@@ -335,7 +335,7 @@ router.delete('/:discussionId', auth, async (req, res) => {
     const semester = await Semester.findById(discussion.semester);
     const isAuthor = discussion.author.toString() === req.userId;
     const isTeacher = semester.participants.some(
-      p => p.user.toString() === req.userId && p.role === 'teacher'
+      p => p.user.toString() === req.userId.toString() && p.role === 'teacher'
     );
 
     if (!isAuthor && !isTeacher) {
