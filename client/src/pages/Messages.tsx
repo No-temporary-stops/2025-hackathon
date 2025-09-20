@@ -29,6 +29,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { useSemester } from '../contexts/SemesterContext';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -121,6 +122,19 @@ const Messages: React.FC = () => {
     },
     {
       enabled: !!selectedSemester,
+    }
+  );
+
+  // Fetch conversations grouped by class for teachers
+  const { data: classConversationsData, isLoading: classConversationsLoading } = useQuery(
+    ['conversations-by-class', selectedSemester],
+    async () => {
+      if (!selectedSemester || user?.role !== 'teacher') return [];
+      const response = await api.get(`/messages/conversations-by-class/${selectedSemester}`);
+      return response.data.classConversations;
+    },
+    {
+      enabled: !!selectedSemester && user?.role === 'teacher',
     }
   );
 
@@ -282,11 +296,97 @@ const Messages: React.FC = () => {
             </Box>
 
             <Box sx={{ flex: 1, overflow: 'auto' }}>
-              {conversationsLoading ? (
+              {conversationsLoading || classConversationsLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress />
                 </Box>
+              ) : user?.role === 'teacher' && classConversationsData && classConversationsData.length > 0 ? (
+                // Teacher view: Group by class
+                <Box>
+                  {classConversationsData.map((classData: any) => (
+                    <Box key={classData.classId} sx={{ mb: 2 }}>
+                      <Box sx={{ 
+                        px: 2, 
+                        py: 1, 
+                        bgcolor: 'primary.main', 
+                        color: 'white',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {classData.className}
+                        </Typography>
+                        {classData.totalUnread > 0 && (
+                          <Chip
+                            label={classData.totalUnread}
+                            size="small"
+                            color="error"
+                            sx={{ bgcolor: 'white', color: 'error.main' }}
+                          />
+                        )}
+                      </Box>
+                      <List>
+                        {classData.conversations
+                          .filter((conv: Conversation) => 
+                            conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                          .map((conversation: Conversation) => (
+                            <ListItem
+                              key={conversation.user._id}
+                              button
+                              selected={conversation.user._id === selectedUserId}
+                              onClick={() => setSelectedUserId(conversation.user._id)}
+                              sx={{
+                                borderBottom: 1,
+                                borderColor: 'divider',
+                                pl: 3, // Indent for class grouping
+                              }}
+                            >
+                              <ListItemAvatar>
+                                <Avatar src={conversation.user.avatar}>
+                                  {conversation.user.name.charAt(0)}
+                                </Avatar>
+                              </ListItemAvatar>
+                              <ListItemText
+                                primary={
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="subtitle2">
+                                      {conversation.user.name}
+                                    </Typography>
+                                    <Chip
+                                      label={getRoleText(conversation.user.role)}
+                                      size="small"
+                                      variant="outlined"
+                                    />
+                                    {conversation.unreadCount > 0 && (
+                                      <Chip
+                                        label={conversation.unreadCount}
+                                        size="small"
+                                        color="error"
+                                      />
+                                    )}
+                                  </Box>
+                                }
+                                secondary={
+                                  <Box>
+                                    <Typography variant="body2" color="text.secondary" noWrap>
+                                      {conversation.lastMessage.content}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {format(new Date(conversation.lastMessage.createdAt), 'MM/dd HH:mm')}
+                                    </Typography>
+                                  </Box>
+                                }
+                              />
+                            </ListItem>
+                          ))}
+                      </List>
+                    </Box>
+                  ))}
+                </Box>
               ) : filteredConversations.length > 0 ? (
+                // Student/Parent view: Regular list
                 <List>
                   {filteredConversations.map((conversation: Conversation) => (
                     <ListItem

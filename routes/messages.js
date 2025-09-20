@@ -99,75 +99,489 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
     const { semesterId } = req.params;
     const currentUserId = req.userId;
 
-    // Get all unique conversation partners
-    const conversations = await Message.aggregate([
-      {
-        $match: {
-          semester: require('mongoose').Types.ObjectId(semesterId),
-          $or: [
-            { sender: require('mongoose').Types.ObjectId(currentUserId) },
-            { recipient: require('mongoose').Types.ObjectId(currentUserId) }
-          ]
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $cond: [
-              { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
-              '$recipient',
-              '$sender'
-            ]
-          },
-          lastMessage: { $last: '$$ROOT' },
-          unreadCount: {
-            $sum: {
-              $cond: [
+    // Get current user's role and classes
+    const semester = await Semester.findById(semesterId);
+    if (!semester) {
+      return res.status(404).json({ message: '學期不存在' });
+    }
+
+    const currentUserParticipant = semester.participants.find(
+      p => p.user.toString() === currentUserId.toString()
+    );
+    
+    if (!currentUserParticipant) {
+      return res.status(403).json({ message: '您不是此學期的參與者' });
+    }
+
+    const currentUserRole = currentUserParticipant.role;
+    const currentUserStudentId = currentUserParticipant.studentId;
+
+    let conversations = [];
+
+    if (currentUserRole === 'teacher') {
+      // For teachers: get conversations with students and parents from their classes
+      const teacherClasses = semester.classes.filter(
+        c => c.teacher.toString() === currentUserId.toString()
+      );
+
+      for (const classInfo of teacherClasses) {
+        // Get students from this class
+        const students = await User.find({
+          _id: { $in: classInfo.students }
+        }).select('_id name email avatar role');
+
+        // Get parents of students from this class
+        const parentParticipantIds = semester.participants
+          .filter(p => p.role === 'parent' && 
+                      classInfo.students.some(s => s.toString() === p.user.toString()))
+          .map(p => p.user);
+
+        const parents = await User.find({
+          _id: { $in: parentParticipantIds }
+        }).select('_id name email avatar role');
+
+        // Get conversations for this class
+        const classConversations = await Message.aggregate([
+          {
+            $match: {
+              semester: require('mongoose').Types.ObjectId(semesterId),
+              $or: [
                 {
                   $and: [
-                    { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
-                    { $eq: ['$isRead', false] }
+                    { sender: require('mongoose').Types.ObjectId(currentUserId) },
+                    { recipient: { $in: [...classInfo.students, ...parentParticipantIds] } }
                   ]
                 },
-                1,
-                0
+                {
+                  $and: [
+                    { recipient: require('mongoose').Types.ObjectId(currentUserId) },
+                    { sender: { $in: [...classInfo.students, ...parentParticipantIds] } }
+                  ]
+                }
               ]
             }
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      {
-        $unwind: '$user'
-      },
-      {
-        $project: {
-          user: {
-            _id: '$user._id',
-            name: '$user.name',
-            email: '$user.email',
-            avatar: '$user.avatar',
-            role: '$user.role'
           },
-          lastMessage: 1,
-          unreadCount: 1
-        }
-      },
-      {
-        $sort: { 'lastMessage.createdAt': -1 }
+          {
+            $group: {
+              _id: {
+                $cond: [
+                  { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
+                  '$recipient',
+                  '$sender'
+                ]
+              },
+              lastMessage: { $last: '$$ROOT' },
+              unreadCount: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
+                        { $eq: ['$isRead', false] }
+                      ]
+                    },
+                    1,
+                    0
+                  ]
+                }
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'user'
+            }
+          },
+          {
+            $unwind: '$user'
+          },
+          {
+            $project: {
+              user: {
+                _id: '$user._id',
+                name: '$user.name',
+                email: '$user.email',
+                avatar: '$user.avatar',
+                role: '$user.role'
+              },
+              lastMessage: 1,
+              unreadCount: 1,
+              className: classInfo.name
+            }
+          }
+        ]);
+
+        conversations.push(...classConversations);
       }
-    ]);
+    } else {
+      // For students and parents: get conversations with their class teacher
+      let classTeachers = [];
+      
+      if (currentUserRole === 'student') {
+        // Find classes where this student is enrolled
+        const studentClasses = semester.classes.filter(c => 
+          c.students.some(s => s.toString() === currentUserId.toString())
+        );
+        classTeachers = studentClasses.map(c => c.teacher);
+      } else if (currentUserRole === 'parent') {
+        // Find classes where this parent's child is enrolled
+        const childClasses = semester.classes.filter(c => 
+          c.students.some(s => {
+            const studentParticipant = semester.participants.find(p => 
+              p.user.toString() === s.toString() && p.studentId === currentUserStudentId
+            );
+            return studentParticipant;
+          })
+        );
+        classTeachers = childClasses.map(c => c.teacher);
+      }
+
+      // Get conversations with class teachers
+      conversations = await Message.aggregate([
+        {
+          $match: {
+            semester: require('mongoose').Types.ObjectId(semesterId),
+            $or: [
+              {
+                $and: [
+                  { sender: require('mongoose').Types.ObjectId(currentUserId) },
+                  { recipient: { $in: classTeachers } }
+                ]
+              },
+              {
+                $and: [
+                  { recipient: require('mongoose').Types.ObjectId(currentUserId) },
+                  { sender: { $in: classTeachers } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
+                '$recipient',
+                '$sender'
+              ]
+            },
+            lastMessage: { $last: '$$ROOT' },
+            unreadCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
+                      { $eq: ['$isRead', false] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        {
+          $unwind: '$user'
+        },
+        {
+          $project: {
+            user: {
+              _id: '$user._id',
+              name: '$user.name',
+              email: '$user.email',
+              avatar: '$user.avatar',
+              role: '$user.role'
+            },
+            lastMessage: 1,
+            unreadCount: 1
+          }
+        },
+        {
+          $sort: { 'lastMessage.createdAt': -1 }
+        }
+      ]);
+    }
 
     res.json({ conversations });
   } catch (error) {
     console.error('Get conversations error:', error);
+    res.status(500).json({ message: '伺服器錯誤' });
+  }
+});
+
+// Get conversations grouped by class for teachers
+router.get('/conversations-by-class/:semesterId', auth, async (req, res) => {
+  try {
+    const { semesterId } = req.params;
+    const currentUserId = req.userId;
+
+    // Get current user's role
+    const semester = await Semester.findById(semesterId);
+    if (!semester) {
+      return res.status(404).json({ message: '學期不存在' });
+    }
+
+    const currentUserParticipant = semester.participants.find(
+      p => p.user.toString() === currentUserId.toString()
+    );
+    
+    if (!currentUserParticipant) {
+      return res.status(403).json({ message: '您不是此學期的參與者' });
+    }
+
+    const currentUserRole = currentUserParticipant.role;
+
+    if (currentUserRole !== 'teacher') {
+      return res.status(403).json({ message: '只有老師可以查看班級分類對話' });
+    }
+
+    // Get teacher's classes
+    const teacherClasses = semester.classes.filter(
+      c => c.teacher.toString() === currentUserId.toString()
+    );
+
+    const classConversations = [];
+
+    for (const classInfo of teacherClasses) {
+      // Get students from this class
+      const students = await User.find({
+        _id: { $in: classInfo.students }
+      }).select('_id name email avatar role');
+
+      // Get parents of students from this class
+      const parentParticipantIds = semester.participants
+        .filter(p => p.role === 'parent' && 
+                    classInfo.students.some(s => s.toString() === p.user.toString()))
+        .map(p => p.user);
+
+      const parents = await User.find({
+        _id: { $in: parentParticipantIds }
+      }).select('_id name email avatar role');
+
+      // Get conversations for this class
+      const conversations = await Message.aggregate([
+        {
+          $match: {
+            semester: require('mongoose').Types.ObjectId(semesterId),
+            $or: [
+              {
+                $and: [
+                  { sender: require('mongoose').Types.ObjectId(currentUserId) },
+                  { recipient: { $in: [...classInfo.students, ...parentParticipantIds] } }
+                ]
+              },
+              {
+                $and: [
+                  { recipient: require('mongoose').Types.ObjectId(currentUserId) },
+                  { sender: { $in: [...classInfo.students, ...parentParticipantIds] } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
+                '$recipient',
+                '$sender'
+              ]
+            },
+            lastMessage: { $last: '$$ROOT' },
+            unreadCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
+                      { $eq: ['$isRead', false] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        {
+          $unwind: '$user'
+        },
+        {
+          $project: {
+            user: {
+              _id: '$user._id',
+              name: '$user.name',
+              email: '$user.email',
+              avatar: '$user.avatar',
+              role: '$user.role'
+            },
+            lastMessage: 1,
+            unreadCount: 1
+          }
+        },
+        {
+          $sort: { 'lastMessage.createdAt': -1 }
+        }
+      ]);
+
+      classConversations.push({
+        className: classInfo.name,
+        classId: classInfo._id,
+        students: students,
+        parents: parents,
+        conversations: conversations,
+        totalUnread: conversations.reduce((sum, conv) => sum + conv.unreadCount, 0)
+      });
+    }
+
+    res.json({ classConversations });
+  } catch (error) {
+    console.error('Get conversations by class error:', error);
+    res.status(500).json({ message: '伺服器錯誤' });
+  }
+});
+
+// Get recent messages for dashboard
+router.get('/recent/:semesterId', auth, async (req, res) => {
+  try {
+    const { semesterId } = req.params;
+    const { limit = 5 } = req.query;
+    const currentUserId = req.userId;
+
+    // Get current user's role and classes
+    const semester = await Semester.findById(semesterId);
+    if (!semester) {
+      return res.status(404).json({ message: '學期不存在' });
+    }
+
+    const currentUserParticipant = semester.participants.find(
+      p => p.user.toString() === currentUserId.toString()
+    );
+    
+    if (!currentUserParticipant) {
+      return res.status(403).json({ message: '您不是此學期的參與者' });
+    }
+
+    const currentUserRole = currentUserParticipant.role;
+    const currentUserStudentId = currentUserParticipant.studentId;
+
+    let messages = [];
+
+    if (currentUserRole === 'teacher') {
+      // For teachers: get recent messages from their classes
+      const teacherClasses = semester.classes.filter(
+        c => c.teacher.toString() === currentUserId.toString()
+      );
+
+      const allClassStudents = [];
+      const allClassParents = [];
+
+      for (const classInfo of teacherClasses) {
+        allClassStudents.push(...classInfo.students);
+        
+        // Get parents of students from this class
+        const parentParticipantIds = semester.participants
+          .filter(p => p.role === 'parent' && 
+                      classInfo.students.some(s => s.toString() === p.user.toString()))
+          .map(p => p.user);
+        allClassParents.push(...parentParticipantIds);
+      }
+
+      messages = await Message.find({
+        semester: semesterId,
+        $or: [
+          {
+            $and: [
+              { sender: { $in: [...allClassStudents, ...allClassParents] } },
+              { recipient: currentUserId }
+            ]
+          },
+          {
+            $and: [
+              { sender: currentUserId },
+              { recipient: { $in: [...allClassStudents, ...allClassParents] } }
+            ]
+          }
+        ]
+      })
+      .populate('sender', 'name avatar role')
+      .populate('recipient', 'name avatar role')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    } else {
+      // For students and parents: get recent messages with their class teachers
+      let classTeachers = [];
+      
+      if (currentUserRole === 'student') {
+        // Find classes where this student is enrolled
+        const studentClasses = semester.classes.filter(c => 
+          c.students.some(s => s.toString() === currentUserId.toString())
+        );
+        classTeachers = studentClasses.map(c => c.teacher);
+      } else if (currentUserRole === 'parent') {
+        // Find classes where this parent's child is enrolled
+        const childClasses = semester.classes.filter(c => 
+          c.students.some(s => {
+            const studentParticipant = semester.participants.find(p => 
+              p.user.toString() === s.toString() && p.studentId === currentUserStudentId
+            );
+            return studentParticipant;
+          })
+        );
+        classTeachers = childClasses.map(c => c.teacher);
+      }
+
+      messages = await Message.find({
+        semester: semesterId,
+        $or: [
+          {
+            $and: [
+              { sender: { $in: classTeachers } },
+              { recipient: currentUserId }
+            ]
+          },
+          {
+            $and: [
+              { sender: currentUserId },
+              { recipient: { $in: classTeachers } }
+            ]
+          }
+        ]
+      })
+      .populate('sender', 'name avatar role')
+      .populate('recipient', 'name avatar role')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+    }
+
+    res.json({ messages });
+  } catch (error) {
+    console.error('Get recent messages error:', error);
     res.status(500).json({ message: '伺服器錯誤' });
   }
 });

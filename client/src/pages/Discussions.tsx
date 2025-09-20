@@ -39,6 +39,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSemester } from '../contexts/SemesterContext';
 import { useForm, Controller } from 'react-hook-form';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
@@ -74,11 +75,11 @@ interface CreateDiscussionData {
 
 const Discussions: React.FC = () => {
   const { user } = useAuth();
+  const { selectedSemester } = useSemester();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
-  const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -97,26 +98,6 @@ const Discussions: React.FC = () => {
     },
   });
 
-  // Fetch user's semesters
-  const { data: semestersData } = useQuery(
-    'semesters',
-    async () => {
-      const response = await api.get('/semesters/my-semesters');
-      return response.data.semesters;
-    }
-  );
-
-  // Set first active semester as default
-  useEffect(() => {
-    if (semestersData && !selectedSemester) {
-      const activeSemester = semestersData.find((s: any) => s.isCurrentlyActive);
-      if (activeSemester) {
-        setSelectedSemester(activeSemester._id);
-      } else if (semestersData.length > 0) {
-        setSelectedSemester(semestersData[0]._id);
-      }
-    }
-  }, [semestersData, selectedSemester]);
 
   // Fetch discussions for selected semester
   const { data: discussionsData, isLoading: discussionsLoading } = useQuery(
@@ -203,8 +184,6 @@ const Discussions: React.FC = () => {
     return format(new Date(dateString), 'MM/dd HH:mm');
   };
 
-  const currentSemester = semestersData?.find((s: any) => s._id === selectedSemester);
-
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
@@ -220,27 +199,6 @@ const Discussions: React.FC = () => {
         </Button>
       </Box>
 
-      {/* Semester Selection */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          選擇學期
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {semestersData?.map((semester: any) => (
-            <Chip
-              key={semester._id}
-              label={`${semester.name} (${semester.schoolYear})`}
-              color={semester._id === selectedSemester ? 'primary' : 'default'}
-              variant={semester._id === selectedSemester ? 'filled' : 'outlined'}
-              onClick={() => setSelectedSemester(semester._id)}
-              sx={{
-                bgcolor: semester.isCurrentlyActive ? 'success.light' : undefined,
-                color: semester.isCurrentlyActive ? 'success.contrastText' : undefined,
-              }}
-            />
-          ))}
-        </Box>
-      </Paper>
 
       {!selectedSemester ? (
         <Alert severity="info">
@@ -283,11 +241,6 @@ const Discussions: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} md={3}>
-                <Alert severity={currentSemester?.isCurrentlyActive ? 'success' : 'info'}>
-                  {currentSemester?.isCurrentlyActive ? '當前活躍學期' : '已結束學期'}
-                </Alert>
-              </Grid>
             </Grid>
           </Paper>
 
@@ -309,6 +262,10 @@ const Discussions: React.FC = () => {
                         borderBottom: 1,
                         borderColor: 'divider',
                         bgcolor: discussion.isPinned ? 'action.hover' : 'transparent',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                        },
                       }}
                     >
                       <ListItemAvatar>

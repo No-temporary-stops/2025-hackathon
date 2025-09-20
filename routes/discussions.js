@@ -321,6 +321,35 @@ router.put('/:discussionId/close', auth, async (req, res) => {
   }
 });
 
+// Increment view count
+router.post('/:discussionId/view', auth, async (req, res) => {
+  try {
+    const { discussionId } = req.params;
+
+    const discussion = await Discussion.findById(discussionId);
+    if (!discussion) {
+      return res.status(404).json({ message: '討論串不存在' });
+    }
+
+    // Check if user is a participant in the semester
+    const semester = await Semester.findById(discussion.semester);
+    const isParticipant = semester.participants.some(
+      p => p.user.toString() === req.userId.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ message: '您不是此學期的參與者' });
+    }
+
+    await discussion.incrementViews();
+
+    res.json({ message: '瀏覽次數已更新' });
+  } catch (error) {
+    console.error('Increment view error:', error);
+    res.status(500).json({ message: '伺服器錯誤' });
+  }
+});
+
 // Delete discussion (author or teacher only)
 router.delete('/:discussionId', auth, async (req, res) => {
   try {

@@ -8,6 +8,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Messages from './pages/Messages';
 import Discussions from './pages/Discussions';
+import DiscussionDetail from './pages/DiscussionDetail';
 import Profile from './pages/Profile';
 import LoadingSpinner from './components/LoadingSpinner';
 
@@ -41,6 +42,10 @@ function App() {
         <Route
           path="/discussions"
           element={user ? <Discussions /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/discussions/:discussionId"
+          element={user ? <DiscussionDetail /> : <Navigate to="/login" />}
         />
         <Route
           path="/profile"
