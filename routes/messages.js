@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const Semester = require('../models/Semester');
@@ -98,18 +99,21 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
   try {
     const { semesterId } = req.params;
     const currentUserId = req.userId;
+    
+    console.log('Getting conversations for semester:', semesterId, 'user:', currentUserId);
 
     // Get all users in the semester
-    const Semester = require('../models/Semester');
     const semester = await Semester.findById(semesterId);
     if (!semester) {
       return res.status(404).json({ message: '學期不存在' });
     }
 
     // Check if user is participant
+    console.log('Semester participants:', semester.participants);
     const isParticipant = semester.participants.some(
       p => p.user.toString() === currentUserId.toString()
     );
+    console.log('Is participant:', isParticipant);
     if (!isParticipant) {
       return res.status(403).json({ message: '您不是此學期的參與者' });
     }
@@ -120,7 +124,6 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
       .filter(userId => userId.toString() !== currentUserId.toString());
 
     // Get all users who can chat
-    const User = require('../models/User');
     const allUsers = await User.find({ _id: { $in: participantIds } })
       .select('name email avatar role studentId childName grade subjects')
       .sort({ role: 1, name: 1 });
@@ -129,10 +132,10 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
     const existingConversations = await Message.aggregate([
       {
         $match: {
-          semester: require('mongoose').Types.ObjectId(semesterId),
+          semester: new mongoose.Types.ObjectId(semesterId),
           $or: [
-            { sender: require('mongoose').Types.ObjectId(currentUserId) },
-            { recipient: require('mongoose').Types.ObjectId(currentUserId) }
+            { sender: new mongoose.Types.ObjectId(currentUserId) },
+            { recipient: new mongoose.Types.ObjectId(currentUserId) }
           ]
         }
       },
@@ -140,7 +143,7 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
         $group: {
           _id: {
             $cond: [
-              { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
+              { $eq: ['$sender', new mongoose.Types.ObjectId(currentUserId)] },
               '$recipient',
               '$sender'
             ]
@@ -151,7 +154,7 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
               $cond: [
                 {
                   $and: [
-                    { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
+                    { $eq: ['$recipient', new mongoose.Types.ObjectId(currentUserId)] },
                     { $eq: ['$isRead', false] }
                   ]
                 },

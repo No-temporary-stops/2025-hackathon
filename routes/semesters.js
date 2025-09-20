@@ -269,7 +269,7 @@ router.get('/:semesterId', auth, async (req, res) => {
 
     // Check if current user is a participant
     const isParticipant = semester.participants.some(
-      p => p.user._id.toString() === req.userId
+      p => p.user.toString() === req.userId.toString()
     );
 
     if (!isParticipant) {

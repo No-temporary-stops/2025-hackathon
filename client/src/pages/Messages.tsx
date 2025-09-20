@@ -17,6 +17,10 @@ import {
   InputAdornment,
   Alert,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Send,
@@ -102,10 +106,13 @@ const Messages: React.FC = () => {
   // Set first active semester as default
   useEffect(() => {
     if (semestersData && !selectedSemester) {
+      console.log('Available semesters:', semestersData);
       const activeSemester = semestersData.find((s: any) => s.isCurrentlyActive);
       if (activeSemester) {
+        console.log('Selected active semester:', activeSemester._id);
         setSelectedSemester(activeSemester._id);
       } else if (semestersData.length > 0) {
+        console.log('Selected first semester:', semestersData[0]._id);
         setSelectedSemester(semestersData[0]._id);
       }
     }
@@ -116,8 +123,38 @@ const Messages: React.FC = () => {
     ['conversations', selectedSemester],
     async () => {
       if (!selectedSemester) return [];
-      const response = await api.get(`/messages/conversations/${selectedSemester}`);
-      return response.data.conversations;
+      console.log('Fetching conversations for semester:', selectedSemester);
+      try {
+        const response = await api.get(`/messages/conversations/${selectedSemester}`);
+        console.log('Conversations response:', response.data);
+        return response.data.conversations;
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        // Fallback: get semester participants directly
+        try {
+          const semesterResponse = await api.get(`/semesters/${selectedSemester}`);
+          const semester = semesterResponse.data.semester;
+          console.log('Fallback: Using semester participants:', semester.participants);
+          
+          // Convert participants to conversation format
+          const fallbackConversations = semester.participants
+            .filter((p: any) => p.user._id !== user?.id) // Exclude current user
+            .map((participant: any) => ({
+              user: participant.user,
+              lastMessage: {
+                content: '開始對話',
+                createdAt: new Date().toISOString()
+              },
+              unreadCount: 0
+            }));
+          
+          console.log('Fallback conversations:', fallbackConversations);
+          return fallbackConversations;
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+          return [];
+        }
+      }
     },
     {
       enabled: !!selectedSemester,
@@ -250,6 +287,12 @@ const Messages: React.FC = () => {
     conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  // Debug conversations data
+  useEffect(() => {
+    console.log('Conversations data:', conversationsData);
+    console.log('Filtered conversations:', filteredConversations);
+  }, [conversationsData, filteredConversations]);
+
   const selectedUser = conversationsData?.find((conv: Conversation) => 
     conv.user._id === selectedUserId
   )?.user;
@@ -259,6 +302,26 @@ const Messages: React.FC = () => {
       <Typography variant="h4" gutterBottom fontWeight="bold">
         訊息中心
       </Typography>
+
+      {/* Semester Selector */}
+      {semestersData && semestersData.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <FormControl fullWidth size="small" sx={{ maxWidth: 300 }}>
+            <InputLabel>選擇學期</InputLabel>
+            <Select
+              value={selectedSemester || ''}
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              label="選擇學期"
+            >
+              {semestersData.map((semester: any) => (
+                <MenuItem key={semester._id} value={semester._id}>
+                  {semester.name} {semester.isCurrentlyActive && '(進行中)'}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
 
       <Grid container spacing={2} sx={{ height: 'calc(100vh - 200px)' }}>
         {/* Conversations List */}
@@ -350,7 +413,7 @@ const Messages: React.FC = () => {
                 </List>
               ) : (
                 <Alert severity="info" sx={{ m: 2 }}>
-                  此學期暫無其他用戶可以聊天
+                  {selectedSemester ? '此學期暫無其他用戶可以聊天' : '請先選擇學期'}
                 </Alert>
               )}
             </Box>
@@ -390,50 +453,102 @@ const Messages: React.FC = () => {
                     </Box>
                   ) : messagesData?.length > 0 ? (
                     <>
-                      {messagesData.map((message: Message) => (
-                        <Box
-                          key={message._id}
-                          sx={{
-                            display: 'flex',
-                            justifyContent: message.sender._id === user?.id ? 'flex-end' : 'flex-start',
-                            mb: 2,
-                          }}
-                        >
+                      {messagesData.map((message: Message) => {
+                        const isOwnMessage = message.sender._id === user?.id;
+                        return (
                           <Box
+                            key={message._id}
                             sx={{
-                              maxWidth: '70%',
-                              p: 2,
-                              borderRadius: 2,
-                              bgcolor: message.sender._id === user?.id ? 'primary.main' : 'grey.100',
-                              color: message.sender._id === user?.id ? 'white' : 'text.primary',
+                              display: 'flex',
+                              justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+                              mb: 2,
+                              px: 1,
                             }}
                           >
-                            <Typography variant="body1">
-                              {message.content}
-                            </Typography>
-                            <Typography
-                              variant="caption"
+                            <Box
                               sx={{
-                                color: message.sender._id === user?.id ? 'rgba(255,255,255,0.7)' : 'text.secondary',
-                                display: 'block',
-                                mt: 0.5,
+                                maxWidth: '70%',
+                                minWidth: '120px',
+                                p: 2,
+                                borderRadius: isOwnMessage ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                bgcolor: isOwnMessage ? 'primary.main' : 'grey.100',
+                                color: isOwnMessage ? 'white' : 'text.primary',
+                                position: 'relative',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                '&::before': isOwnMessage ? {
+                                  content: '""',
+                                  position: 'absolute',
+                                  bottom: 0,
+                                  right: -8,
+                                  width: 0,
+                                  height: 0,
+                                  borderLeft: '8px solid',
+                                  borderLeftColor: 'primary.main',
+                                  borderTop: '8px solid transparent',
+                                  borderBottom: '8px solid transparent',
+                                } : {
+                                  content: '""',
+                                  position: 'absolute',
+                                  bottom: 0,
+                                  left: -8,
+                                  width: 0,
+                                  height: 0,
+                                  borderRight: '8px solid',
+                                  borderRightColor: 'grey.100',
+                                  borderTop: '8px solid transparent',
+                                  borderBottom: '8px solid transparent',
+                                }
                               }}
                             >
-                              {formatMessageTime(message.createdAt)}
-                            </Typography>
+                              <Typography 
+                                variant="body1" 
+                                sx={{ 
+                                  wordBreak: 'break-word',
+                                  lineHeight: 1.4,
+                                }}
+                              >
+                                {message.content}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'text.secondary',
+                                  display: 'block',
+                                  mt: 0.5,
+                                  textAlign: isOwnMessage ? 'right' : 'left',
+                                  fontSize: '0.75rem',
+                                }}
+                              >
+                                {formatMessageTime(message.createdAt)}
+                              </Typography>
+                            </Box>
                           </Box>
-                        </Box>
-                      ))}
+                        );
+                      })}
                       {isTyping && typingUser && (
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, px: 1 }}>
                           <Box
                             sx={{
                               p: 2,
-                              borderRadius: 2,
+                              borderRadius: '18px 18px 18px 4px',
                               bgcolor: 'grey.100',
+                              position: 'relative',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                              '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                bottom: 0,
+                                left: -8,
+                                width: 0,
+                                height: 0,
+                                borderRight: '8px solid',
+                                borderRightColor: 'grey.100',
+                                borderTop: '8px solid transparent',
+                                borderBottom: '8px solid transparent',
+                              }
                             }}
                           >
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                               {typingUser} 正在輸入...
                             </Typography>
                           </Box>
