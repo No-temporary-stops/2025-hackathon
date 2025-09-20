@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -10,6 +10,9 @@ import {
   Avatar,
   Box,
   Badge,
+  Divider,
+  Chip,
+  ListSubheader,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -17,19 +20,52 @@ import {
   Notifications,
   Message,
   Forum,
-  Dashboard,
   ExitToApp,
   Event,
+  School,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from 'react-query';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../services/api';
+
+interface Semester {
+  _id: string;
+  name: string;
+  schoolYear: string;
+  startDate: string;
+  endDate: string;
+  isCurrentlyActive: boolean;
+}
 
 const Navbar: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Fetch user's semesters
+  const { data: semestersData } = useQuery(
+    'navbar-semesters',
+    async () => {
+      const response = await api.get('/semesters/my-semesters');
+      return response.data.semesters;
+    }
+  );
+
+  // Auto-select current active semester
+  useEffect(() => {
+    if (semestersData && !selectedSemester) {
+      const activeSemester = semestersData.find((semester: Semester) => semester.isCurrentlyActive);
+      if (activeSemester) {
+        setSelectedSemester(activeSemester._id);
+      } else if (semestersData.length > 0) {
+        setSelectedSemester(semestersData[0]._id);
+      }
+    }
+  }, [semestersData, selectedSemester]);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -66,31 +102,36 @@ const Navbar: React.FC = () => {
     }
   };
 
+  const handleSemesterChange = (semesterId: string) => {
+    setSelectedSemester(semesterId);
+    handleMenuClose();
+    // Refresh dashboard if on dashboard page
+    if (location.pathname === '/dashboard') {
+      window.location.reload();
+    }
+  };
+
+  const currentSemester = semestersData?.find((semester: Semester) => semester._id === selectedSemester);
+
   return (
     <AppBar position="static" sx={{ bgcolor: 'primary.main' }}>
       <Toolbar>
         <Typography
           variant="h6"
           component="div"
-          sx={{ flexGrow: 1, fontWeight: 'bold' }}
+          onClick={() => handleNavigation('/dashboard')}
+          sx={{ 
+            flexGrow: 1, 
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            '&:hover': { opacity: 0.8 }
+          }}
         >
           師生通訊軟體
         </Typography>
 
         {/* Desktop Navigation */}
         <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
-          <Button
-            color="inherit"
-            startIcon={<Dashboard />}
-            onClick={() => handleNavigation('/dashboard')}
-            sx={{ 
-              bgcolor: isActive('/dashboard') ? 'rgba(255,255,255,0.1)' : 'transparent',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            儀表板
-          </Button>
-          
           <Button
             color="inherit"
             startIcon={<Message />}
@@ -175,12 +216,55 @@ const Navbar: React.FC = () => {
         }}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
+        PaperProps={{
+          sx: { minWidth: 280 }
+        }}
       >
         <MenuItem disabled>
           <Typography variant="body2" color="text.secondary">
             {user?.name} ({getRoleText(user?.role || '')})
           </Typography>
         </MenuItem>
+        
+        <Divider />
+        
+        <ListSubheader sx={{ bgcolor: 'background.paper' }}>
+          <School sx={{ mr: 1, fontSize: 16 }} />
+          選擇學期
+        </ListSubheader>
+        
+        {semestersData?.map((semester: Semester) => (
+          <MenuItem 
+            key={semester._id} 
+            onClick={() => handleSemesterChange(semester._id)}
+            sx={{ 
+              pl: 4,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <Box>
+              <Typography variant="body2">
+                {semester.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {semester.schoolYear}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {semester._id === selectedSemester && (
+                <Chip size="small" label="已選" color="primary" />
+              )}
+              {semester.isCurrentlyActive && (
+                <Chip size="small" label="當前" color="success" />
+              )}
+            </Box>
+          </MenuItem>
+        ))}
+        
+        <Divider />
+        
         <MenuItem onClick={() => handleNavigation('/profile')}>
           <AccountCircle sx={{ mr: 1 }} />
           個人資料
@@ -205,11 +289,10 @@ const Navbar: React.FC = () => {
         }}
         open={Boolean(mobileMenuAnchor)}
         onClose={handleMenuClose}
+        PaperProps={{
+          sx: { minWidth: 280 }
+        }}
       >
-        <MenuItem onClick={() => handleNavigation('/dashboard')}>
-          <Dashboard sx={{ mr: 1 }} />
-          儀表板
-        </MenuItem>
         <MenuItem onClick={() => handleNavigation('/messages')}>
           <Message sx={{ mr: 1 }} />
           訊息
@@ -222,6 +305,46 @@ const Navbar: React.FC = () => {
           <Event sx={{ mr: 1 }} />
           行事曆
         </MenuItem>
+        
+        <Divider />
+        
+        <ListSubheader sx={{ bgcolor: 'background.paper' }}>
+          <School sx={{ mr: 1, fontSize: 16 }} />
+          選擇學期
+        </ListSubheader>
+        
+        {semestersData?.map((semester: Semester) => (
+          <MenuItem 
+            key={semester._id} 
+            onClick={() => handleSemesterChange(semester._id)}
+            sx={{ 
+              pl: 4,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <Box>
+              <Typography variant="body2">
+                {semester.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {semester.schoolYear}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {semester._id === selectedSemester && (
+                <Chip size="small" label="已選" color="primary" />
+              )}
+              {semester.isCurrentlyActive && (
+                <Chip size="small" label="當前" color="success" />
+              )}
+            </Box>
+          </MenuItem>
+        ))}
+        
+        <Divider />
+        
         <MenuItem onClick={() => handleNavigation('/profile')}>
           <AccountCircle sx={{ mr: 1 }} />
           個人資料

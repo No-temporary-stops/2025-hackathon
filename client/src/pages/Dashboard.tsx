@@ -17,13 +17,9 @@ import {
   CircularProgress,
 } from '@mui/material';
 import {
-  Message,
-  Forum,
-  School,
-  TrendingUp,
-  Notifications,
-  Add,
   ChevronRight,
+  NavigateBefore,
+  NavigateNext,
 } from '@mui/icons-material';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
@@ -80,6 +76,7 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   // Fetch user's semesters
   const { data: semestersData, isLoading: semestersLoading } = useQuery(
@@ -89,6 +86,19 @@ const Dashboard: React.FC = () => {
       return response.data.semesters;
     }
   );
+
+  // Auto-select current active semester
+  useEffect(() => {
+    if (semestersData && !selectedSemester) {
+      const activeSemester = semestersData.find((semester: Semester) => semester.isCurrentlyActive);
+      if (activeSemester) {
+        setSelectedSemester(activeSemester._id);
+      } else if (semestersData.length > 0) {
+        // If no active semester, select the first one
+        setSelectedSemester(semestersData[0]._id);
+      }
+    }
+  }, [semestersData, selectedSemester]);
 
   // Fetch conversations for selected semester
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery(
@@ -148,6 +158,36 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  // Calendar helper functions
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setMonth(prev.getMonth() - 1);
+      } else {
+        newDate.setMonth(prev.getMonth() + 1);
+      }
+      return newDate;
+    });
+  };
+
+  const isToday = (day: number) => {
+    const today = new Date();
+    return (
+      currentDate.getFullYear() === today.getFullYear() &&
+      currentDate.getMonth() === today.getMonth() &&
+      day === today.getDate()
+    );
+  };
+
   if (semestersLoading) {
     return <LoadingSpinner message="載入儀表板中..." />;
   }
@@ -160,118 +200,44 @@ const Dashboard: React.FC = () => {
         歡迎回來，{user?.name}！
       </Typography>
 
+      {/* Current Semester Display */}
+      {currentSemester && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" color="primary" fontWeight="medium">
+            當前學期：{currentSemester.name} ({currentSemester.schoolYear})
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {formatDate(currentSemester.startDate)} 至 {formatDate(currentSemester.endDate)}
+            {currentSemester.isCurrentlyActive && (
+              <Chip 
+                size="small" 
+                label="進行中" 
+                color="success" 
+                sx={{ ml: 1 }}
+              />
+            )}
+          </Typography>
+        </Box>
+      )}
+
       <Grid container spacing={3}>
-        {/* Semester Selection */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                選擇學期
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                {semestersData?.map((semester: Semester) => (
-                  <Chip
-                    key={semester._id}
-                    label={`${semester.name} (${semester.schoolYear})`}
-                    color={semester._id === selectedSemester ? 'primary' : 'default'}
-                    variant={semester._id === selectedSemester ? 'filled' : 'outlined'}
-                    onClick={() => setSelectedSemester(semester._id)}
-                    sx={{
-                      bgcolor: semester.isCurrentlyActive ? 'success.light' : undefined,
-                      color: semester.isCurrentlyActive ? 'success.contrastText' : undefined,
-                    }}
-                  />
-                ))}
-              </Box>
-              {currentSemester && (
-                <Alert severity={currentSemester.isCurrentlyActive ? 'success' : 'info'}>
-                  {currentSemester.isCurrentlyActive ? '當前活躍學期' : '已結束學期'} - 
-                  {formatDate(currentSemester.startDate)} 至 {formatDate(currentSemester.endDate)}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {!selectedSemester ? (
-          <Grid item xs={12}>
-            <Alert severity="info">
-              請先選擇一個學期以查看相關資訊
-            </Alert>
-          </Grid>
-        ) : (
-          <>
-            {/* Quick Stats */}
-            <Grid item xs={12} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Message color="primary" sx={{ mr: 1 }} />
-                    <Typography variant="h6">未讀訊息</Typography>
-                  </Box>
-                  <Typography variant="h3" color="primary">
-                    {conversationsData?.reduce((sum: number, conv: Conversation) => sum + conv.unreadCount, 0) || 0}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Forum color="secondary" sx={{ mr: 1 }} />
-                    <Typography variant="h6">討論串</Typography>
-                  </Box>
-                  <Typography variant="h3" color="secondary">
-                    {discussionsData?.length || 0}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <School color="success" sx={{ mr: 1 }} />
-                    <Typography variant="h6">參與者</Typography>
-                  </Box>
-                  <Typography variant="h3" color="success.main">
-                    {currentSemester?.participants.length || 0}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <TrendingUp color="warning" sx={{ mr: 1 }} />
-                    <Typography variant="h6">活躍度</Typography>
-                  </Box>
-                  <Typography variant="h3" color="warning.main">
-                    {currentSemester?.isCurrentlyActive ? '高' : '低'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Recent Conversations */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">最近對話</Typography>
-                    <Button
-                      size="small"
-                      endIcon={<ChevronRight />}
-                      onClick={() => navigate('/messages')}
-                    >
-                      查看全部
-                    </Button>
-                  </Box>
+            {/* Left Column */}
+            <Grid item xs={12} md={7}>
+              <Grid container spacing={3}>
+                {/* Recent Conversations */}
+                <Grid item xs={12}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">最近對話</Typography>
+                        <Button
+                          size="small"
+                          endIcon={<ChevronRight />}
+                          onClick={() => navigate('/messages')}
+                        >
+                          查看全部
+                        </Button>
+                      </Box>
                   {conversationsLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                       <CircularProgress size={24} />
@@ -328,27 +294,27 @@ const Dashboard: React.FC = () => {
                         </ListItem>
                       ))}
                     </List>
-                  ) : (
-                    <Alert severity="info">暫無對話記錄</Alert>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
+                      ) : (
+                        <Alert severity="info">暫無對話記錄</Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
 
-            {/* Recent Discussions */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6">最新討論</Typography>
-                    <Button
-                      size="small"
-                      endIcon={<ChevronRight />}
-                      onClick={() => navigate('/discussions')}
-                    >
-                      查看全部
-                    </Button>
-                  </Box>
+                {/* Recent Discussions */}
+                <Grid item xs={12}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">最新討論</Typography>
+                        <Button
+                          size="small"
+                          endIcon={<ChevronRight />}
+                          onClick={() => navigate('/discussions')}
+                        >
+                          查看全部
+                        </Button>
+                      </Box>
                   {discussionsLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                       <CircularProgress size={24} />
@@ -396,48 +362,135 @@ const Dashboard: React.FC = () => {
                         </ListItem>
                       ))}
                     </List>
-                  ) : (
-                    <Alert severity="info">暫無討論記錄</Alert>
-                  )}
-                </CardContent>
-              </Card>
+                      ) : (
+                        <Alert severity="info">暫無討論記錄</Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
             </Grid>
 
-            {/* Quick Actions */}
-            <Grid item xs={12}>
+            {/* Right Column - Calendar */}
+            <Grid item xs={12} md={5}>
               <Card>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    快速操作
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">行事曆</Typography>
                     <Button
-                      variant="contained"
-                      startIcon={<Message />}
-                      onClick={() => navigate('/messages')}
+                      size="small"
+                      endIcon={<ChevronRight />}
+                      onClick={() => navigate('/calendar')}
                     >
-                      發送訊息
-                    </Button>
-                    <Button
-                      variant="contained"
-                      startIcon={<Forum />}
-                      onClick={() => navigate('/discussions')}
-                    >
-                      創建討論
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<Add />}
-                      onClick={() => navigate('/discussions')}
-                    >
-                      查看所有討論
+                      查看全部
                     </Button>
                   </Box>
+                  
+                  {/* Calendar Header */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Button size="small" onClick={() => navigateMonth('prev')}>
+                      <NavigateBefore />
+                    </Button>
+                    <Typography variant="subtitle1" fontWeight="medium">
+                      {currentDate.toLocaleDateString('zh-TW', { 
+                        year: 'numeric', 
+                        month: 'long' 
+                      })}
+                    </Typography>
+                    <Button size="small" onClick={() => navigateMonth('next')}>
+                      <NavigateNext />
+                    </Button>
+                  </Box>
+
+                  {/* Calendar Grid */}
+                  <Box sx={{ mb: 3 }}>
+                    {/* Week days header */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
+                      {['日', '一', '二', '三', '四', '五', '六'].map(day => (
+                        <Box key={day} sx={{ textAlign: 'center', py: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight="medium">
+                            {day}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    
+                    {/* Calendar days */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+                      {/* Empty cells for days before month start */}
+                      {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                        <Box key={`empty-${i}`} sx={{ height: 32 }} />
+                      ))}
+                      
+                      {/* Days of the month */}
+                      {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
+                        const day = i + 1;
+                        return (
+                          <Box
+                            key={day}
+                            sx={{
+                              height: 32,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              borderRadius: 1,
+                              bgcolor: isToday(day) ? 'primary.main' : 'transparent',
+                              color: isToday(day) ? 'white' : 'text.primary',
+                              fontWeight: isToday(day) ? 'bold' : 'normal',
+                              '&:hover': {
+                                bgcolor: isToday(day) ? 'primary.dark' : 'action.hover',
+                              }
+                            }}
+                          >
+                            <Typography variant="body2">
+                              {day}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+
+                  {/* Upcoming Events */}
+                  <Typography variant="subtitle2" gutterBottom>
+                    近期活動
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Box sx={{ width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%' }} />
+                      <Box>
+                        <Typography variant="body2">數學期中考</Typography>
+                        <Typography variant="caption" color="text.secondary">9月25日 09:00</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Box sx={{ width: 8, height: 8, bgcolor: 'warning.main', borderRadius: '50%' }} />
+                      <Box>
+                        <Typography variant="body2">家長會</Typography>
+                        <Typography variant="caption" color="text.secondary">9月28日 14:00</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Box sx={{ width: 8, height: 8, bgcolor: 'info.main', borderRadius: '50%' }} />
+                      <Box>
+                        <Typography variant="body2">班級活動</Typography>
+                        <Typography variant="caption" color="text.secondary">10月1日 10:00</Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={() => navigate('/calendar')}
+                    size="small"
+                  >
+                    查看完整行事曆
+                  </Button>
                 </CardContent>
               </Card>
             </Grid>
-          </>
-        )}
       </Grid>
     </Container>
   );
