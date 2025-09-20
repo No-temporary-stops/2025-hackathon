@@ -66,6 +66,8 @@ interface CalendarEvent {
   priority: '高' | '中' | '低';
   type: 'todo' | 'event';
   description?: string;
+  link?: string;
+  linkText?: string;
 }
 
 const CalendarPage: React.FC = () => {
@@ -78,7 +80,9 @@ const CalendarPage: React.FC = () => {
       isCompleted: false,
       priority: "高",
       type: "todo",
-      description: "完成第三章習題"
+      description: "完成第三章習題",
+      link: "https://classroom.google.com",
+      linkText: "前往 Google Classroom"
     },
     {
       id: 2,
@@ -87,13 +91,40 @@ const CalendarPage: React.FC = () => {
       end: new Date(2025, 8, 22, 23, 59),
       isCompleted: false,
       priority: "中",
-      type: "todo"
+      type: "todo",
+      description: "學費、雜費等行政費用繳交",
+      link: "https://payment.example.com",
+      linkText: "前往繳費系統"
     },
     {
       id: 3,
+      title: "數學期中考",
+      start: new Date(2025, 8, 25, 9, 0),
+      end: new Date(2025, 8, 25, 11, 0),
+      isCompleted: false,
+      priority: "高",
+      type: "event",
+      description: "第三章至第五章範圍",
+      link: "https://exam.example.com",
+      linkText: "查看考試須知"
+    },
+    {
+      id: 4,
+      title: "繳交英文作業",
+      start: new Date(2025, 8, 28, 23, 59),
+      end: new Date(2025, 8, 28, 23, 59),
+      isCompleted: false,
+      priority: "中",
+      type: "todo",
+      description: "英文作文練習",
+      link: "https://classroom.google.com",
+      linkText: "前往 Google Classroom"
+    },
+    {
+      id: 5,
       title: "班親會",
-      start: new Date(2025, 8, 25, 18, 30),
-      end: new Date(2025, 8, 25, 20, 30),
+      start: new Date(2025, 8, 30, 18, 30),
+      end: new Date(2025, 8, 30, 20, 30),
       isCompleted: false,
       priority: "低",
       type: "event",
@@ -112,7 +143,9 @@ const CalendarPage: React.FC = () => {
     end: "",
     priority: "中" as "高" | "中" | "低",
     type: "todo" as "todo" | "event",
-    description: ""
+    description: "",
+    link: "",
+    linkText: ""
   });
 
   // 獲取預設時間
@@ -138,7 +171,9 @@ const CalendarPage: React.FC = () => {
       end: defaults.end,
       priority: "中",
       type: "todo",
-      description: ""
+      description: "",
+      link: "",
+      linkText: ""
     });
   };
 
@@ -166,7 +201,9 @@ const CalendarPage: React.FC = () => {
       isCompleted: false,
       priority: newEvent.priority,
       type: newEvent.type,
-      description: newEvent.description
+      description: newEvent.description,
+      link: newEvent.link,
+      linkText: newEvent.linkText
     };
     
     setEvents([...events, event]);
@@ -419,6 +456,25 @@ const CalendarPage: React.FC = () => {
                 placeholder="選填：詳細說明..."
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="連結網址"
+                value={newEvent.link}
+                onChange={(e) => setNewEvent({ ...newEvent, link: e.target.value })}
+                placeholder="選填：https://example.com"
+                type="url"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="連結文字"
+                value={newEvent.linkText}
+                onChange={(e) => setNewEvent({ ...newEvent, linkText: e.target.value })}
+                placeholder="選填：連結顯示文字"
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
@@ -479,6 +535,24 @@ const CalendarPage: React.FC = () => {
                     <Typography variant="body2" sx={{ mt: 2 }}>
                       <strong>描述：</strong>{selectedEvent.description}
                     </Typography>
+                  )}
+                  
+                  {selectedEvent.link && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>相關連結：</strong>
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        href={selectedEvent.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ textTransform: 'none' }}
+                      >
+                        {selectedEvent.linkText || selectedEvent.link}
+                      </Button>
+                    </Box>
                   )}
                 </CardContent>
               </Card>

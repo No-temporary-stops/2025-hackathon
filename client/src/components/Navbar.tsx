@@ -23,6 +23,10 @@ import {
   ExitToApp,
   Event,
   School,
+  Link as LinkIcon,
+  Payment,
+  Assignment,
+  Description,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from 'react-query';
@@ -41,6 +45,7 @@ interface Semester {
 const Navbar: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [linksMenuAnchor, setLinksMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -78,6 +83,11 @@ const Navbar: React.FC = () => {
   const handleMenuClose = () => {
     setAnchorEl(null);
     setMobileMenuAnchor(null);
+    setLinksMenuAnchor(null);
+  };
+
+  const handleLinksMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setLinksMenuAnchor(event.currentTarget);
   };
 
   const handleLogout = () => {
@@ -112,6 +122,34 @@ const Navbar: React.FC = () => {
   };
 
   const currentSemester = semestersData?.find((semester: Semester) => semester._id === selectedSemester);
+
+  // 常用連結資料
+  const commonLinks = [
+    {
+      name: 'Google Classroom',
+      url: 'https://classroom.google.com',
+      icon: <Assignment />,
+      description: '作業繳交與課程資料'
+    },
+    {
+      name: '學費繳費系統',
+      url: 'https://payment.example.com',
+      icon: <Payment />,
+      description: '線上繳費平台'
+    },
+    {
+      name: '考試系統',
+      url: 'https://exam.example.com',
+      icon: <Description />,
+      description: '線上考試與成績查詢'
+    },
+    {
+      name: '課程表查詢',
+      url: 'https://schedule.example.com',
+      icon: <Event />,
+      description: '個人課程表'
+    }
+  ];
 
   return (
     <AppBar position="static" sx={{ bgcolor: 'primary.main' }}>
@@ -166,6 +204,17 @@ const Navbar: React.FC = () => {
             }}
           >
             行事曆
+          </Button>
+
+          <Button
+            color="inherit"
+            startIcon={<LinkIcon />}
+            onClick={handleLinksMenuOpen}
+            sx={{ 
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            常用連結
           </Button>
 
           <IconButton color="inherit">
@@ -305,6 +354,10 @@ const Navbar: React.FC = () => {
           <Event sx={{ mr: 1 }} />
           行事曆
         </MenuItem>
+        <MenuItem onClick={handleLinksMenuOpen}>
+          <LinkIcon sx={{ mr: 1 }} />
+          常用連結
+        </MenuItem>
         
         <Divider />
         
@@ -353,6 +406,58 @@ const Navbar: React.FC = () => {
           <ExitToApp sx={{ mr: 1 }} />
           登出
         </MenuItem>
+      </Menu>
+
+      {/* 常用連結選單 */}
+      <Menu
+        anchorEl={linksMenuAnchor}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        keepMounted
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        open={Boolean(linksMenuAnchor)}
+        onClose={handleMenuClose}
+        PaperProps={{
+          sx: { minWidth: 300 }
+        }}
+      >
+        <ListSubheader sx={{ bgcolor: 'background.paper' }}>
+          <LinkIcon sx={{ mr: 1, fontSize: 16 }} />
+          常用連結
+        </ListSubheader>
+        
+        {commonLinks.map((link, index) => (
+          <MenuItem 
+            key={index}
+            onClick={() => {
+              window.open(link.url, '_blank', 'noopener,noreferrer');
+              handleMenuClose();
+            }}
+            sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              py: 1.5
+            }}
+          >
+            <Box sx={{ color: 'primary.main' }}>
+              {link.icon}
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" fontWeight="medium">
+                {link.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {link.description}
+              </Typography>
+            </Box>
+          </MenuItem>
+        ))}
       </Menu>
     </AppBar>
   );
