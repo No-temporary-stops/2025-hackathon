@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Container,
   Grid,
@@ -17,6 +17,10 @@ import {
   InputAdornment,
   Alert,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Send,
@@ -66,6 +70,83 @@ interface Conversation {
   unreadCount: number;
 }
 
+// 優化的消息組件
+const MessageItem = React.memo<{
+  message: Message;
+  isOwnMessage: boolean;
+  formatTime: (date: string) => string;
+}>(({ message, isOwnMessage, formatTime }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+      mb: 2,
+      px: 1,
+    }}
+  >
+    <Box
+      sx={{
+        maxWidth: '70%',
+        minWidth: '120px',
+        p: 2,
+        borderRadius: isOwnMessage ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+        bgcolor: isOwnMessage ? 'primary.main' : 'grey.100',
+        color: isOwnMessage ? 'white' : 'text.primary',
+        position: 'relative',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        '&::before': isOwnMessage ? {
+          content: '""',
+          position: 'absolute',
+          bottom: 0,
+          right: -8,
+          width: 0,
+          height: 0,
+          borderLeft: '8px solid',
+          borderLeftColor: 'primary.main',
+          borderTop: '8px solid transparent',
+          borderBottom: '8px solid transparent',
+        } : {
+          content: '""',
+          position: 'absolute',
+          bottom: 0,
+          left: -8,
+          width: 0,
+          height: 0,
+          borderRight: '8px solid',
+          borderRightColor: 'grey.100',
+          borderTop: '8px solid transparent',
+          borderBottom: '8px solid transparent',
+        }
+      }}
+    >
+      <Typography 
+        variant="body1" 
+        sx={{ 
+          wordBreak: 'break-word',
+          lineHeight: 1.4,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+          hyphens: 'auto',
+        }}
+      >
+        {message.content}
+      </Typography>
+      <Typography
+        variant="caption"
+        sx={{
+          color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'text.secondary',
+          display: 'block',
+          mt: 0.5,
+          textAlign: isOwnMessage ? 'right' : 'left',
+          fontSize: '0.75rem',
+        }}
+      >
+        {formatTime(message.createdAt)}
+      </Typography>
+    </Box>
+  </Box>
+));
+
 const Messages: React.FC = () => {
   const { user } = useAuth();
   const { joinRoom, leaveRoom, sendMessage, onMessage, onTyping, emitTyping } = useSocket();
@@ -102,10 +183,13 @@ const Messages: React.FC = () => {
   // Set first active semester as default
   useEffect(() => {
     if (semestersData && !selectedSemester) {
+      console.log('Available semesters:', semestersData);
       const activeSemester = semestersData.find((s: any) => s.isCurrentlyActive);
       if (activeSemester) {
+        console.log('Selected active semester:', activeSemester._id);
         setSelectedSemester(activeSemester._id);
       } else if (semestersData.length > 0) {
+        console.log('Selected first semester:', semestersData[0]._id);
         setSelectedSemester(semestersData[0]._id);
       }
     }
@@ -116,8 +200,38 @@ const Messages: React.FC = () => {
     ['conversations', selectedSemester],
     async () => {
       if (!selectedSemester) return [];
-      const response = await api.get(`/messages/conversations/${selectedSemester}`);
-      return response.data.conversations;
+      console.log('Fetching conversations for semester:', selectedSemester);
+      try {
+        const response = await api.get(`/messages/conversations/${selectedSemester}`);
+        console.log('Conversations response:', response.data);
+        return response.data.conversations;
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        // Fallback: get semester participants directly
+        try {
+          const semesterResponse = await api.get(`/semesters/${selectedSemester}`);
+          const semester = semesterResponse.data.semester;
+          console.log('Fallback: Using semester participants:', semester.participants);
+          
+          // Convert participants to conversation format
+          const fallbackConversations = semester.participants
+            .filter((p: any) => p.user._id !== user?.id) // Exclude current user
+            .map((participant: any) => ({
+              user: participant.user,
+              lastMessage: {
+                content: '開始對話',
+                createdAt: new Date().toISOString()
+              },
+              unreadCount: 0
+            }));
+          
+          console.log('Fallback conversations:', fallbackConversations);
+          return fallbackConversations;
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+          return [];
+        }
+      }
     },
     {
       enabled: !!selectedSemester,
@@ -134,7 +248,9 @@ const Messages: React.FC = () => {
     },
     {
       enabled: !!selectedUserId && !!selectedSemester,
-      refetchInterval: 5000, // Refetch every 5 seconds
+      staleTime: 30000, // 30 seconds
+      cacheTime: 300000, // 5 minutes
+      refetchOnWindowFocus: false,
     }
   );
 
@@ -152,52 +268,80 @@ const Messages: React.FC = () => {
     }
   );
 
+  // Mark conversation as read mutation
+  const markAsReadMutation = useMutation(
+    async ({ userId, semesterId }: { userId: string; semesterId: string }) => {
+      const response = await api.put(`/messages/read-conversation/${userId}/${semesterId}`);
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['conversations', selectedSemester]);
+        queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
+      },
+      onError: (error: any) => {
+        console.error('Mark as read error:', error);
+      }
+    }
+  );
+
   // Join room when user is selected
   useEffect(() => {
     if (selectedUserId && selectedSemester) {
       const roomId = `${selectedUserId}-${selectedSemester}`;
       joinRoom(roomId);
+      
+      // Mark conversation as read when user opens it
+      markAsReadMutation.mutate({
+        userId: selectedUserId,
+        semesterId: selectedSemester
+      });
+      
       return () => leaveRoom(roomId);
     }
-  }, [selectedUserId, selectedSemester, joinRoom, leaveRoom]);
+  }, [selectedUserId, selectedSemester, joinRoom, leaveRoom, markAsReadMutation]);
 
   // Listen for new messages
-  useEffect(() => {
-    const handleNewMessage = (data: any) => {
-      if (data.senderId !== user?.id) {
-        queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
-        queryClient.invalidateQueries(['conversations', selectedSemester]);
-      }
-    };
+  const handleNewMessage = useCallback((data: any) => {
+    if (data.senderId !== user?.id) {
+      queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
+      queryClient.invalidateQueries(['conversations', selectedSemester]);
+    }
+  }, [user?.id, selectedUserId, selectedSemester, queryClient]);
 
+  useEffect(() => {
     onMessage(handleNewMessage);
-  }, [onMessage, selectedUserId, selectedSemester, user?.id, queryClient]);
+  }, [onMessage, handleNewMessage]);
 
   // Listen for typing indicators
-  useEffect(() => {
-    const handleTyping = (data: any) => {
-      if (data.userId !== user?.id) {
-        setTypingUser(data.userName);
-        setIsTyping(true);
-        
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-        
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false);
-          setTypingUser(null);
-        }, 3000);
+  const handleTyping = useCallback((data: any) => {
+    if (data.userId !== user?.id) {
+      setTypingUser(data.userName);
+      setIsTyping(true);
+      
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
-    };
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+        setTypingUser(null);
+      }, 3000);
+    }
+  }, [user?.id]);
 
+  useEffect(() => {
     onTyping(handleTyping);
-  }, [onTyping, user?.id]);
+  }, [onTyping, handleTyping]);
 
   // Auto scroll to bottom
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messagesData]);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messagesData, scrollToBottom]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUserId || !selectedSemester) return;
@@ -242,23 +386,48 @@ const Messages: React.FC = () => {
     }
   };
 
-  const formatMessageTime = (dateString: string) => {
+  const formatMessageTime = useCallback((dateString: string) => {
     return format(new Date(dateString), 'HH:mm');
-  };
+  }, []);
 
-  const filteredConversations = conversationsData?.filter((conv: Conversation) =>
-    conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredConversations = useMemo(() => 
+    conversationsData?.filter((conv: Conversation) =>
+      conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [], [conversationsData, searchTerm]
+  );
 
-  const selectedUser = conversationsData?.find((conv: Conversation) => 
-    conv.user._id === selectedUserId
-  )?.user;
+
+  const selectedUser = useMemo(() => 
+    conversationsData?.find((conv: Conversation) => 
+      conv.user._id === selectedUserId
+    )?.user, [conversationsData, selectedUserId]
+  );
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom fontWeight="bold">
         訊息中心
       </Typography>
+
+      {/* Semester Selector */}
+      {semestersData && semestersData.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <FormControl fullWidth size="small" sx={{ maxWidth: 300 }}>
+            <InputLabel>選擇學期</InputLabel>
+            <Select
+              value={selectedSemester || ''}
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              label="選擇學期"
+            >
+              {semestersData.map((semester: any) => (
+                <MenuItem key={semester._id} value={semester._id}>
+                  {semester.name} {semester.isCurrentlyActive && '(進行中)'}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
 
       <Grid container spacing={2} sx={{ height: 'calc(100vh - 200px)' }}>
         {/* Conversations List */}
@@ -326,12 +495,22 @@ const Messages: React.FC = () => {
                         }
                         secondary={
                           <Box>
-                            <Typography variant="body2" color="text.secondary" noWrap>
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary" 
+                              noWrap
+                              sx={{ 
+                                fontStyle: conversation.lastMessage.content === '開始對話' ? 'italic' : 'normal',
+                                opacity: conversation.lastMessage.content === '開始對話' ? 0.7 : 1
+                              }}
+                            >
                               {conversation.lastMessage.content}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatMessageTime(conversation.lastMessage.createdAt)}
-                            </Typography>
+                            {conversation.lastMessage.content !== '開始對話' && (
+                              <Typography variant="caption" color="text.secondary">
+                                {formatMessageTime(conversation.lastMessage.createdAt)}
+                              </Typography>
+                            )}
                           </Box>
                         }
                       />
@@ -340,7 +519,7 @@ const Messages: React.FC = () => {
                 </List>
               ) : (
                 <Alert severity="info" sx={{ m: 2 }}>
-                  暫無對話記錄
+                  {selectedSemester ? '此學期暫無其他用戶可以聊天' : '請先選擇學期'}
                 </Alert>
               )}
             </Box>
@@ -380,50 +559,41 @@ const Messages: React.FC = () => {
                     </Box>
                   ) : messagesData?.length > 0 ? (
                     <>
-                      {messagesData.map((message: Message) => (
-                        <Box
-                          key={message._id}
-                          sx={{
-                            display: 'flex',
-                            justifyContent: message.sender._id === user?.id ? 'flex-end' : 'flex-start',
-                            mb: 2,
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              maxWidth: '70%',
-                              p: 2,
-                              borderRadius: 2,
-                              bgcolor: message.sender._id === user?.id ? 'primary.main' : 'grey.100',
-                              color: message.sender._id === user?.id ? 'white' : 'text.primary',
-                            }}
-                          >
-                            <Typography variant="body1">
-                              {message.content}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: message.sender._id === user?.id ? 'rgba(255,255,255,0.7)' : 'text.secondary',
-                                display: 'block',
-                                mt: 0.5,
-                              }}
-                            >
-                              {formatMessageTime(message.createdAt)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
+                      {messagesData.map((message: Message) => {
+                        const isOwnMessage = message.sender._id === user?.id;
+                        return (
+                          <MessageItem
+                            key={message._id}
+                            message={message}
+                            isOwnMessage={isOwnMessage}
+                            formatTime={formatMessageTime}
+                          />
+                        );
+                      })}
                       {isTyping && typingUser && (
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, px: 1 }}>
                           <Box
                             sx={{
                               p: 2,
-                              borderRadius: 2,
+                              borderRadius: '18px 18px 18px 4px',
                               bgcolor: 'grey.100',
+                              position: 'relative',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                              '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                bottom: 0,
+                                left: -8,
+                                width: 0,
+                                height: 0,
+                                borderRight: '8px solid',
+                                borderRightColor: 'grey.100',
+                                borderTop: '8px solid transparent',
+                                borderBottom: '8px solid transparent',
+                              }
                             }}
                           >
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                               {typingUser} 正在輸入...
                             </Typography>
                           </Box>

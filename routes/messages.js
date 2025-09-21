@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const Semester = require('../models/Semester');
@@ -98,15 +99,43 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
   try {
     const { semesterId } = req.params;
     const currentUserId = req.userId;
+    
+    console.log('Getting conversations for semester:', semesterId, 'user:', currentUserId);
 
-    // Get all unique conversation partners
-    const conversations = await Message.aggregate([
+    // Get all users in the semester
+    const semester = await Semester.findById(semesterId);
+    if (!semester) {
+      return res.status(404).json({ message: '學期不存在' });
+    }
+
+    // Check if user is participant
+    console.log('Semester participants:', semester.participants);
+    const isParticipant = semester.participants.some(
+      p => p.user.toString() === currentUserId.toString()
+    );
+    console.log('Is participant:', isParticipant);
+    if (!isParticipant) {
+      return res.status(403).json({ message: '您不是此學期的參與者' });
+    }
+
+    // Get all semester participants except current user
+    const participantIds = semester.participants
+      .map(p => p.user)
+      .filter(userId => userId.toString() !== currentUserId.toString());
+
+    // Get all users who can chat
+    const allUsers = await User.find({ _id: { $in: participantIds } })
+      .select('name email avatar role studentId childName grade subjects')
+      .sort({ role: 1, name: 1 });
+
+    // Get existing conversations
+    const existingConversations = await Message.aggregate([
       {
         $match: {
-          semester: require('mongoose').Types.ObjectId(semesterId),
+          semester: new mongoose.Types.ObjectId(semesterId),
           $or: [
-            { sender: require('mongoose').Types.ObjectId(currentUserId) },
-            { recipient: require('mongoose').Types.ObjectId(currentUserId) }
+            { sender: new mongoose.Types.ObjectId(currentUserId) },
+            { recipient: new mongoose.Types.ObjectId(currentUserId) }
           ]
         }
       },
@@ -114,7 +143,7 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
         $group: {
           _id: {
             $cond: [
-              { $eq: ['$sender', require('mongoose').Types.ObjectId(currentUserId)] },
+              { $eq: ['$sender', new mongoose.Types.ObjectId(currentUserId)] },
               '$recipient',
               '$sender'
             ]
@@ -125,7 +154,7 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
               $cond: [
                 {
                   $and: [
-                    { $eq: ['$recipient', require('mongoose').Types.ObjectId(currentUserId)] },
+                    { $eq: ['$recipient', new mongoose.Types.ObjectId(currentUserId)] },
                     { $eq: ['$isRead', false] }
                   ]
                 },
@@ -135,35 +164,57 @@ router.get('/conversations/:semesterId', auth, async (req, res) => {
             }
           }
         }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      {
-        $unwind: '$user'
-      },
-      {
-        $project: {
-          user: {
-            _id: '$user._id',
-            name: '$user.name',
-            email: '$user.email',
-            avatar: '$user.avatar',
-            role: '$user.role'
-          },
-          lastMessage: 1,
-          unreadCount: 1
-        }
-      },
-      {
-        $sort: { 'lastMessage.createdAt': -1 }
       }
     ]);
+
+    // Create conversation map from existing conversations
+    const conversationMap = {};
+    existingConversations.forEach(conv => {
+      conversationMap[conv._id.toString()] = {
+        lastMessage: {
+          content: conv.lastMessage.content,
+          createdAt: conv.lastMessage.createdAt
+        },
+        unreadCount: conv.unreadCount
+      };
+    });
+
+    // Build conversations array with all users
+    const conversations = allUsers.map(user => {
+      const existingConv = conversationMap[user._id.toString()];
+      return {
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+          role: user.role
+        },
+        lastMessage: existingConv ? existingConv.lastMessage : {
+          content: '開始對話',
+          createdAt: new Date()
+        },
+        unreadCount: existingConv ? existingConv.unreadCount : 0
+      };
+    });
+
+    // Sort: conversations with messages first, then by last message time or name
+    conversations.sort((a, b) => {
+      const hasMessageA = conversationMap[a.user._id.toString()] ? 1 : 0;
+      const hasMessageB = conversationMap[b.user._id.toString()] ? 1 : 0;
+      
+      if (hasMessageA !== hasMessageB) {
+        return hasMessageB - hasMessageA; // Users with messages first
+      }
+      
+      if (hasMessageA && hasMessageB) {
+        // Both have messages, sort by last message time
+        return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+      }
+      
+      // Neither has messages, sort by name
+      return a.user.name.localeCompare(b.user.name);
+    });
 
     res.json({ conversations });
   } catch (error) {

@@ -23,6 +23,7 @@ import {
   ExitToApp,
   Event,
   School,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from 'react-query';
@@ -113,6 +114,7 @@ const Navbar: React.FC = () => {
 
   const currentSemester = semestersData?.find((semester: Semester) => semester._id === selectedSemester);
 
+
   return (
     <AppBar position="static" sx={{ bgcolor: 'primary.main' }}>
       <Toolbar>
@@ -166,6 +168,17 @@ const Navbar: React.FC = () => {
             }}
           >
             行事曆
+          </Button>
+
+          <Button
+            color="inherit"
+            startIcon={<LinkIcon />}
+            onClick={() => navigate('/links')}
+            sx={{ 
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
+            常用連結
           </Button>
 
           <IconButton color="inherit">
@@ -305,6 +318,10 @@ const Navbar: React.FC = () => {
           <Event sx={{ mr: 1 }} />
           行事曆
         </MenuItem>
+        <MenuItem onClick={() => handleNavigation('/links')}>
+          <LinkIcon sx={{ mr: 1 }} />
+          常用連結
+        </MenuItem>
         
         <Divider />
         
@@ -354,6 +371,7 @@ const Navbar: React.FC = () => {
           登出
         </MenuItem>
       </Menu>
+
     </AppBar>
   );
 };

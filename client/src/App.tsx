@@ -11,6 +11,7 @@ import Discussions from './pages/Discussions';
 import DiscussionDetail from './pages/DiscussionDetail';
 import Profile from './pages/Profile';
 import Calendar from './pages/Calendar';
+import CommonLinks from './pages/CommonLinks';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
@@ -55,6 +56,10 @@ function App() {
         <Route
           path="/calendar"
           element={user ? <Calendar /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/links"
+          element={user ? <CommonLinks /> : <Navigate to="/login" />}
         />
         <Route
           path="/"

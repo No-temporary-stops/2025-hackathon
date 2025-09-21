@@ -43,7 +43,7 @@ import {
   MoreVert,
   Save,
 } from '@mui/icons-material';
-import { useQuery } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -94,73 +94,34 @@ interface Discussion {
   isPinned: boolean;
 }
 
-// Sample events data
-const sampleEvents = [
-    { 
-      date: 20, 
-      title: '班會', 
-      color: 'info.main', 
-      type: 'meeting',
-      time: '08:00',
-      location: '教室 A101',
-      description: '討論本月班級事務，包括學習進度檢討和活動安排。',
-      organizer: '班導師 王老師'
-    },
-    { 
-      date: 22, 
-      title: '英文小考', 
-      color: 'warning.main', 
-      type: 'test',
-      time: '10:00',
-      location: '教室 A101',
-      description: '第三單元單字和文法測驗，範圍為 Unit 3 全部內容。',
-      organizer: '英文老師 李老師'
-    },
-    { 
-      date: 25, 
-      title: '數學期中考', 
-      color: 'error.main', 
-      type: 'exam',
-      time: '09:00',
-      location: '考試大樓 B203',
-      description: '期中考試，考試範圍涵蓋第1-6章，請準備計算機和文具。',
-      organizer: '數學老師 張老師'
-    },
-    { 
-      date: 26, 
-      title: '體育課', 
-      color: 'success.main', 
-      type: 'class',
-      time: '14:00',
-      location: '體育館',
-      description: '籃球基本技巧練習，請穿著運動服和運動鞋。',
-      organizer: '體育老師 陳老師'
-    },
-    { 
-      date: 28, 
-      title: '家長會', 
-      color: 'warning.main', 
-      type: 'meeting',
-      time: '14:00',
-      location: '學校禮堂',
-      description: '與家長討論學生學習狀況和未來規劃，歡迎家長踴躍參與。',
-      organizer: '學務處'
-    },
-    { 
-      date: 30, 
-      title: '校外教學', 
-      color: 'info.main', 
-      type: 'activity',
-      time: '08:30',
-      location: '科學博物館',
-      description: '參觀科學博物館，探索科學奧秘，請攜帶學習單和筆記本。',
-      organizer: '自然老師 林老師'
-    },
-];
+// Calendar event interface to match backend
+interface CalendarEvent {
+  _id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  isCompleted: boolean;
+  priority: '高' | '中' | '低';
+  type: 'todo' | 'event';
+  description?: string;
+  link?: string;
+  linkText?: string;
+  semester: {
+    _id: string;
+    name: string;
+    schoolYear: string;
+  };
+  createdBy: {
+    _id: string;
+    name: string;
+    avatar: string;
+  };
+}
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<'calendar' | 'events'>('calendar');
@@ -169,10 +130,21 @@ const Dashboard: React.FC = () => {
   const [dayEventsOpen, setDayEventsOpen] = useState(false);
   const [eventDetailOpen, setEventDetailOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{mouseX: number; mouseY: number; day: number} | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [editEventOpen, setEditEventOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isNewEvent, setIsNewEvent] = useState(false);
-  const [events, setEvents] = useState(sampleEvents);
+  const [newEvent, setNewEvent] = useState({
+    title: "",
+    start: "",
+    end: "",
+    priority: "中" as "高" | "中" | "低",
+    type: "todo" as "todo" | "event",
+    description: "",
+    link: "",
+    linkText: "",
+    semesterId: ""
+  });
 
   // Fetch user's semesters
   const { data: semestersData, isLoading: semestersLoading } = useQuery(
@@ -219,6 +191,78 @@ const Dashboard: React.FC = () => {
     },
     {
       enabled: !!selectedSemester,
+    }
+  );
+
+  // Fetch calendar events for selected semester
+  const { data: eventsData, isLoading: eventsLoading } = useQuery(
+    ['calendar-events', selectedSemester, currentDate],
+    async () => {
+      if (!selectedSemester) return [];
+      
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      
+      const response = await api.get('/calendar/events', {
+        params: {
+          semesterId: selectedSemester,
+          start: startOfMonth.toISOString(),
+          end: endOfMonth.toISOString()
+        }
+      });
+      
+      // 轉換日期字符串為 Date 對象
+      return response.data.events.map((event: any) => ({
+        ...event,
+        start: new Date(event.start),
+        end: new Date(event.end)
+      }));
+    },
+    {
+      enabled: !!selectedSemester,
+      onSuccess: (data) => {
+        setEvents(data);
+      }
+    }
+  );
+
+  // 新增事件 mutation
+  const createEventMutation = useMutation(
+    async (eventData: any) => {
+      const response = await api.post('/calendar/events', eventData);
+      return response.data.event;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['calendar-events', selectedSemester, currentDate]);
+        setEditEventOpen(false);
+        resetForm();
+      },
+      onError: (error: any) => {
+        console.error('創建事件失敗:', error);
+        alert(error.response?.data?.message || '創建事件失敗');
+      }
+    }
+  );
+
+  // 更新事件 mutation
+  const updateEventMutation = useMutation(
+    async ({ id, eventData }: { id: string, eventData: any }) => {
+      const response = await api.put(`/calendar/events/${id}`, eventData);
+      return response.data.event;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['calendar-events', selectedSemester, currentDate]);
+        setEditEventOpen(false);
+        setEventDetailOpen(false);
+        resetForm();
+        setEditingEvent(null);
+      },
+      onError: (error: any) => {
+        console.error('更新事件失敗:', error);
+        alert(error.response?.data?.message || '更新事件失敗');
+      }
     }
   );
 
@@ -285,7 +329,11 @@ const Dashboard: React.FC = () => {
   };
 
   const getEventsForDay = (day: number) => {
-    return events.filter(event => event.date === day);
+    return events.filter(event => 
+      event.start.getDate() === day && 
+      event.start.getMonth() === currentDate.getMonth() && 
+      event.start.getFullYear() === currentDate.getFullYear()
+    );
   };
 
   const handleDayClick = (day: number) => {
@@ -311,12 +359,31 @@ const Dashboard: React.FC = () => {
 
   const getEventTypeText = (type: string) => {
     switch (type) {
+      case 'todo': return '待辦事項';
+      case 'event': return '活動';
       case 'meeting': return '會議';
       case 'test': return '測驗';
       case 'exam': return '考試';
       case 'class': return '課程';
       case 'activity': return '活動';
       default: return type;
+    }
+  };
+
+  // 獲取事件顏色
+  const getEventColor = (event: CalendarEvent) => {
+    if (event.isCompleted) {
+      return '#4caf50';
+    }
+    switch(event.priority) {
+      case "高":
+        return '#f44336';
+      case "中":
+        return '#ff9800';
+      case "低":
+        return '#2196f3';
+      default:
+        return '#2196f3';
     }
   };
 
@@ -333,54 +400,129 @@ const Dashboard: React.FC = () => {
     setContextMenu(null);
   };
 
+  // 重置表單
+  const resetForm = () => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setMinutes(0, 0, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() + 1);
+    
+    setNewEvent({
+      title: "",
+      start: start.toISOString().slice(0, 16),
+      end: end.toISOString().slice(0, 16),
+      priority: "中",
+      type: "todo",
+      description: "",
+      link: "",
+      linkText: "",
+      semesterId: selectedSemester || ""
+    });
+  };
+
+  // 新增事件
   const handleAddEvent = (day?: number) => {
-    const newEvent = {
-      date: day || contextMenu?.day || 1,
-      title: '',
-      color: 'info.main',
-      type: 'meeting',
-      time: '09:00',
-      location: '',
-      description: '',
-      organizer: user?.name || ''
-    };
-    setEditingEvent(newEvent);
+    resetForm();
+    if (day) {
+      const eventDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      setNewEvent(prev => ({
+        ...prev,
+        start: eventDate.toISOString().slice(0, 16),
+        end: new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString().slice(0, 16)
+      }));
+    }
     setIsNewEvent(true);
     setEditEventOpen(true);
     handleContextMenuClose();
   };
 
-  const handleEditEvent = (event: any) => {
-    setEditingEvent({...event});
+  // 保存事件
+  const handleSaveEvent = () => {
+    if (!newEvent.title || !newEvent.start || !newEvent.end || !newEvent.semesterId) {
+      alert("請完整輸入所有必填欄位！");
+      return;
+    }
+    
+    const startDate = new Date(newEvent.start);
+    const endDate = new Date(newEvent.end);
+    
+    if (endDate <= startDate) {
+      alert("結束時間必須晚於開始時間！");
+      return;
+    }
+
+    const eventData = {
+      title: newEvent.title,
+      description: newEvent.description,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      priority: newEvent.priority,
+      type: newEvent.type,
+      link: newEvent.link,
+      linkText: newEvent.linkText,
+      semesterId: newEvent.semesterId
+    };
+    
+    createEventMutation.mutate(eventData);
+  };
+
+  // 處理表單變更
+  const handleFormChange = (field: string, value: any) => {
+    setNewEvent(prev => ({ ...prev, [field]: value }));
+  };
+
+  // 編輯事件
+  const handleEditEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setNewEvent({
+      title: event.title,
+      start: event.start.toISOString().slice(0, 16),
+      end: event.end.toISOString().slice(0, 16),
+      priority: event.priority as "高" | "中" | "低",
+      type: event.type as "todo" | "event",
+      description: event.description || "",
+      link: event.link || "",
+      linkText: event.linkText || "",
+      semesterId: event.semester.toString()
+    });
     setIsNewEvent(false);
     setEditEventOpen(true);
     setEventDetailOpen(false);
   };
 
-  const handleDeleteEvent = (eventToDelete: any) => {
-    setEvents(prev => prev.filter(event => 
-      !(event.date === eventToDelete.date && event.title === eventToDelete.title)
-    ));
-    setEventDetailOpen(false);
-  };
-
-  const handleSaveEvent = () => {
-    if (isNewEvent) {
-      setEvents(prev => [...prev, editingEvent]);
-    } else {
-      setEvents(prev => prev.map(event => 
-        event.date === editingEvent.date && event.title === editingEvent.title 
-          ? editingEvent 
-          : event
-      ));
+  // 保存編輯的事件
+  const handleSaveEditEvent = () => {
+    if (!newEvent.title || !newEvent.start || !newEvent.end || !newEvent.semesterId) {
+      alert("請完整輸入所有必填欄位！");
+      return;
     }
-    setEditEventOpen(false);
-    setEditingEvent(null);
+    
+    const startDate = new Date(newEvent.start);
+    const endDate = new Date(newEvent.end);
+    
+    if (endDate <= startDate) {
+      alert("結束時間必須晚於開始時間！");
+      return;
+    }
+
+    const eventData = {
+      title: newEvent.title,
+      description: newEvent.description,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      priority: newEvent.priority,
+      type: newEvent.type,
+      link: newEvent.link,
+      linkText: newEvent.linkText,
+      semesterId: newEvent.semesterId
+    };
+    
+    if (editingEvent) {
+      updateEventMutation.mutate({ id: editingEvent._id, eventData });
+    }
   };
 
-  const handleEditEventChange = (field: string, value: any) => {
-    setEditingEvent((prev: any) => ({ ...prev, [field]: value }));
-  };
 
   if (semestersLoading) {
     return <LoadingSpinner message="載入儀表板中..." />;
@@ -614,9 +756,20 @@ const Dashboard: React.FC = () => {
                   {/* Calendar Grid */}
                   <Box sx={{ mb: 3 }}>
                     {/* Week days header */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
-                      {['日', '一', '二', '三', '四', '五', '六'].map(day => (
-                        <Box key={day} sx={{ textAlign: 'center', py: 0.5 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, mb: 1 }}>
+                      {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+                        <Box 
+                          key={day} 
+                          sx={{ 
+                            textAlign: 'center', 
+                            py: 1, 
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderTop: 'none',
+                            borderLeft: index === 0 ? '1px solid' : 'none',
+                            borderRight: 'none'
+                          }}
+                        >
                           <Typography variant="caption" color="text.secondary" fontWeight="medium">
                             {day}
                           </Typography>
@@ -625,7 +778,7 @@ const Dashboard: React.FC = () => {
                     </Box>
                     
                     {/* Calendar days */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0 }}>
                       {/* Empty cells for days before month start */}
                       {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
                         <Box 
@@ -634,7 +787,9 @@ const Dashboard: React.FC = () => {
                             minHeight: 100,
                             border: '1px solid',
                             borderColor: 'divider',
-                            borderRadius: 1,
+                            borderTop: 'none',
+                            borderLeft: i === 0 ? '1px solid' : 'none',
+                            borderRight: 'none',
                             bgcolor: 'action.hover',
                             opacity: 0.3
                           }} 
@@ -654,7 +809,9 @@ const Dashboard: React.FC = () => {
                               minHeight: 100,
                               border: '1px solid',
                               borderColor: dayEvents.length > 0 ? 'primary.main' : 'divider',
-                              borderRadius: 1,
+                              borderTop: 'none',
+                              borderLeft: (getFirstDayOfMonth(currentDate) + i) % 7 === 0 ? '1px solid' : 'none',
+                              borderRight: 'none',
                               cursor: 'pointer',
                               bgcolor: isToday(day) ? 'primary.light' : 'background.paper',
                               p: 0.5,
@@ -696,21 +853,24 @@ const Dashboard: React.FC = () => {
                                     bgcolor: 'rgba(0,0,0,0.04)',
                                     borderRadius: 0.5,
                                     borderLeft: `3px solid`,
-                                    borderLeftColor: event.color,
+                                    borderLeftColor: getEventColor(event),
                                   }}
                                 >
                                   <Typography 
                                     variant="caption" 
+                                    title={event.title}
                                     sx={{ 
                                       fontSize: '0.65rem',
                                       fontWeight: 500,
                                       lineHeight: 1.2,
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
+                                      maxWidth: '100%',
+                                      display: 'block'
                                     }}
                                   >
-                                    {event.title}
+                                    {event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title}
                                   </Typography>
                                 </Box>
                               ))}
@@ -747,9 +907,10 @@ const Dashboard: React.FC = () => {
                         近期活動
                       </Typography>
                       <Box sx={{ mb: 2 }}>
-                        {events
-                          .filter(event => event.date >= new Date().getDate())
-                          .map((event, index) => (
+                      {events
+                        .filter(event => event.start >= new Date())
+                        .sort((a, b) => a.start.getTime() - b.start.getTime())
+                        .map((event, index) => (
                             <Box 
                               key={index} 
                               onClick={() => handleEventClick(event)}
@@ -768,11 +929,22 @@ const Dashboard: React.FC = () => {
                                 }
                               }}
                             >
-                              <Box sx={{ width: 8, height: 8, bgcolor: event.color, borderRadius: '50%' }} />
-                              <Box sx={{ flex: 1 }}>
-                                <Typography variant="body2" fontWeight="medium">{event.title}</Typography>
+                              <Box sx={{ width: 8, height: 8, bgcolor: getEventColor(event), borderRadius: '50%' }} />
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography 
+                                  variant="body2" 
+                                  fontWeight="medium"
+                                  title={event.title}
+                                  sx={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {event.title}
+                                </Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                  9月{event.date}日 {event.type === 'exam' ? '09:00' : event.type === 'meeting' ? '14:00' : '10:00'}
+                                  {event.start.toLocaleDateString('zh-TW')} {event.start.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                                 </Typography>
                               </Box>
                               <ChevronRight sx={{ opacity: 0.7 }} />
@@ -798,7 +970,7 @@ const Dashboard: React.FC = () => {
         </Button>
       </DialogTitle>
       <DialogContent>
-        {selectedDay !== null ? events.filter(event => event.date === selectedDay).map((event, index) => (
+        {selectedDay !== null ? getEventsForDay(selectedDay).map((event, index) => (
           <Box
             key={index}
             onClick={() => handleEventClick(event)}
@@ -818,19 +990,28 @@ const Dashboard: React.FC = () => {
               }
             }}
           >
-            <Box sx={{ width: 12, height: 12, bgcolor: event.color, borderRadius: '50%' }} />
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" fontWeight="medium">
+            <Box sx={{ width: 12, height: 12, bgcolor: getEventColor(event), borderRadius: '50%' }} />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography 
+                variant="subtitle2" 
+                fontWeight="medium"
+                title={event.title}
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
                 {event.title}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {event.time} • {event.location}
+                {event.start.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
               </Typography>
             </Box>
             <ChevronRight color="action" />
           </Box>
         )) : null}
-        {selectedDay !== null && events.filter(event => event.date === selectedDay).length === 0 && (
+        {selectedDay !== null && getEventsForDay(selectedDay).length === 0 && (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="body2" color="text.secondary">
               這一天沒有活動
@@ -842,19 +1023,17 @@ const Dashboard: React.FC = () => {
         <Button onClick={handleCloseDayEvents} color="primary">
           關閉
         </Button>
-        <Button 
-          onClick={() => {
-            handleCloseDayEvents();
-            if (selectedDay !== null) {
-              handleAddEvent(selectedDay);
-            }
-          }}
-          variant="contained"
-          color="primary"
-          startIcon={<Add />}
-        >
-          新增活動
-        </Button>
+          <Button 
+            onClick={() => {
+              handleCloseDayEvents();
+              handleAddEvent(selectedDay ?? undefined);
+            }}
+            variant="contained"
+            color="primary"
+            startIcon={<Add />}
+          >
+            新增活動
+          </Button>
       </DialogActions>
     </Dialog>
 
@@ -876,6 +1055,16 @@ const Dashboard: React.FC = () => {
           <Box sx={{ py: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Chip 
+                label={selectedEvent.isCompleted ? '已完成' : '待完成'} 
+                color={selectedEvent.isCompleted ? 'success' : 'default'} 
+                size="small" 
+              />
+              <Chip 
+                label={selectedEvent.priority || '中'} 
+                color={selectedEvent.priority === '高' ? 'error' : selectedEvent.priority === '中' ? 'warning' : 'info'} 
+                size="small" 
+              />
+              <Chip 
                 label={getEventTypeText(selectedEvent.type)} 
                 color="primary" 
                 size="small" 
@@ -885,14 +1074,14 @@ const Dashboard: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <AccessTime color="action" />
               <Typography variant="body2">
-                9月{selectedEvent.date}日 {selectedEvent.time}
+                開始：{selectedEvent.start.toLocaleDateString('zh-TW')} {selectedEvent.start.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
               </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <Category color="action" />
+              <AccessTime color="action" />
               <Typography variant="body2">
-                {selectedEvent.location}
+                結束：{selectedEvent.end.toLocaleDateString('zh-TW')} {selectedEvent.end.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
               </Typography>
             </Box>
 
@@ -905,6 +1094,24 @@ const Dashboard: React.FC = () => {
               {selectedEvent.description}
             </Typography>
 
+            {selectedEvent.link && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  相關連結
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  href={selectedEvent.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ textTransform: 'none' }}
+                >
+                  {selectedEvent.linkText || selectedEvent.link}
+                </Button>
+              </Box>
+            )}
+
             <Typography variant="subtitle2" gutterBottom>
               主辦者
             </Typography>
@@ -915,22 +1122,23 @@ const Dashboard: React.FC = () => {
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleCloseEventDetail} color="primary">
+        <Button onClick={handleCloseEventDetail} color="inherit">
           關閉
         </Button>
         <Button 
-          onClick={() => handleEditEvent(selectedEvent)} 
+          onClick={() => selectedEvent && handleEditEvent(selectedEvent)} 
           color="primary"
           startIcon={<Edit />}
         >
-          編輯
+          編輯事件
         </Button>
         <Button 
-          onClick={() => handleDeleteEvent(selectedEvent)} 
-          color="error"
-          startIcon={<Delete />}
+          onClick={() => navigate('/calendar')} 
+          color="primary"
+          variant="outlined"
+          startIcon={<CalendarMonth />}
         >
-          刪除
+          前往行事曆
         </Button>
       </DialogActions>
     </Dialog>
@@ -946,7 +1154,7 @@ const Dashboard: React.FC = () => {
           : undefined
       }
     >
-      <MenuItem onClick={() => handleAddEvent()}>
+      <MenuItem onClick={() => handleAddEvent(contextMenu?.day)}>
         <Add sx={{ mr: 1 }} />
         新增活動
       </MenuItem>
@@ -954,81 +1162,139 @@ const Dashboard: React.FC = () => {
 
     {/* Edit Event Dialog */}
     <Dialog open={editEventOpen} onClose={() => setEditEventOpen(false)} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {isNewEvent ? '新增活動' : '編輯活動'}
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h6">{isNewEvent ? '新增活動' : '編輯活動'}</Typography>
+        <Button onClick={() => setEditEventOpen(false)} sx={{ minWidth: 'auto', p: 1 }}>
+          <Close />
+        </Button>
       </DialogTitle>
-      <DialogContent sx={{ pt: 2 }}>
-        <TextField
-          fullWidth
-          label="活動標題"
-          value={editingEvent?.title || ''}
-          onChange={(e) => handleEditEventChange('title', e.target.value)}
-          margin="normal"
-        />
-        
-        <FormControl fullWidth margin="normal">
-          <InputLabel>活動類型</InputLabel>
-          <Select
-            value={editingEvent?.type || 'meeting'}
-            onChange={(e) => handleEditEventChange('type', e.target.value)}
-          >
-            <MenuItem value="meeting">會議</MenuItem>
-            <MenuItem value="test">測驗</MenuItem>
-            <MenuItem value="exam">考試</MenuItem>
-            <MenuItem value="class">課程</MenuItem>
-            <MenuItem value="activity">活動</MenuItem>
-          </Select>
-        </FormControl>
-
-        <TextField
-          fullWidth
-          label="時間"
-          type="time"
-          value={editingEvent?.time || '09:00'}
-          onChange={(e) => handleEditEventChange('time', e.target.value)}
-          margin="normal"
-        />
-
-        <TextField
-          fullWidth
-          label="地點"
-          value={editingEvent?.location || ''}
-          onChange={(e) => handleEditEventChange('location', e.target.value)}
-          margin="normal"
-        />
-
-        <TextField
-          fullWidth
-          label="描述"
-          multiline
-          rows={3}
-          value={editingEvent?.description || ''}
-          onChange={(e) => handleEditEventChange('description', e.target.value)}
-          margin="normal"
-        />
-
-        <TextField
-          fullWidth
-          label="主辦者"
-          value={editingEvent?.organizer || ''}
-          onChange={(e) => handleEditEventChange('organizer', e.target.value)}
-          margin="normal"
-        />
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="活動標題"
+              value={newEvent.title}
+              onChange={(e) => handleFormChange('title', e.target.value)}
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>學期</InputLabel>
+              <Select
+                value={newEvent.semesterId}
+                onChange={(e) => handleFormChange('semesterId', e.target.value)}
+                label="學期"
+                required
+              >
+                {semestersData?.map((semester: any) => (
+                  <MenuItem key={semester._id} value={semester._id}>
+                    {semester.name} ({semester.schoolYear})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>類型</InputLabel>
+              <Select
+                value={newEvent.type}
+                onChange={(e) => handleFormChange('type', e.target.value)}
+                label="類型"
+              >
+                <MenuItem value="todo">待辦事項</MenuItem>
+                <MenuItem value="event">活動事件</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>優先級</InputLabel>
+              <Select
+                value={newEvent.priority}
+                onChange={(e) => handleFormChange('priority', e.target.value)}
+                label="優先級"
+              >
+                <MenuItem value="高">🔴 高優先級</MenuItem>
+                <MenuItem value="中">🟡 中優先級</MenuItem>
+                <MenuItem value="低">🟢 低優先級</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              type="datetime-local"
+              label="開始時間"
+              value={newEvent.start}
+              onChange={(e) => handleFormChange('start', e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              type="datetime-local"
+              label="結束時間"
+              value={newEvent.end}
+              onChange={(e) => handleFormChange('end', e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="描述"
+              value={newEvent.description}
+              onChange={(e) => handleFormChange('description', e.target.value)}
+              placeholder="選填：詳細說明..."
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="連結網址"
+              value={newEvent.link}
+              onChange={(e) => handleFormChange('link', e.target.value)}
+              placeholder="選填：https://example.com"
+              type="url"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="連結文字"
+              value={newEvent.linkText}
+              onChange={(e) => handleFormChange('linkText', e.target.value)}
+              placeholder="選填：連結顯示文字"
+            />
+          </Grid>
+        </Grid>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setEditEventOpen(false)}>
+      <DialogActions sx={{ p: 3 }}>
+        <Button onClick={() => setEditEventOpen(false)} color="inherit" disabled={createEventMutation.isLoading || updateEventMutation.isLoading}>
           取消
         </Button>
         <Button 
-          onClick={handleSaveEvent} 
+          onClick={isNewEvent ? handleSaveEvent : handleSaveEditEvent} 
           variant="contained"
-          startIcon={<Save />}
-          disabled={!editingEvent?.title}
+          disabled={createEventMutation.isLoading || updateEventMutation.isLoading}
+          startIcon={(createEventMutation.isLoading || updateEventMutation.isLoading) ? <CircularProgress size={20} /> : <Save />}
         >
-          儲存
+          {(createEventMutation.isLoading || updateEventMutation.isLoading) ? 
+            (isNewEvent ? '創建中...' : '更新中...') : 
+            (isNewEvent ? '新增' : '更新')
+          }
         </Button>
       </DialogActions>
     </Dialog>
+
     </>
   );
 };
