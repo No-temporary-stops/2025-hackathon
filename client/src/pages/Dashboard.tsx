@@ -94,68 +94,81 @@ interface Discussion {
   isPinned: boolean;
 }
 
-// Sample events data
+// Sample events data - 與行事曆頁面保持一致
 const sampleEvents = [
     { 
+      id: 1,
       date: 20, 
-      title: '班會', 
-      color: 'info.main', 
-      type: 'meeting',
-      time: '08:00',
-      location: '教室 A101',
-      description: '討論本月班級事務，包括學習進度檢討和活動安排。',
-      organizer: '班導師 王老師'
-    },
-    { 
-      date: 22, 
-      title: '英文小考', 
-      color: 'warning.main', 
-      type: 'test',
+      title: '繳交數學作業', 
+      color: '#f44336', 
+      type: 'todo',
       time: '10:00',
-      location: '教室 A101',
-      description: '第三單元單字和文法測驗，範圍為 Unit 3 全部內容。',
-      organizer: '英文老師 李老師'
+      location: '線上',
+      description: '完成第三章習題',
+      organizer: '數學老師',
+      priority: '高',
+      isCompleted: false,
+      link: 'https://classroom.google.com',
+      linkText: '前往 Google Classroom'
     },
     { 
+      id: 2,
+      date: 22, 
+      title: '行政繳費截止', 
+      color: '#ff9800', 
+      type: 'todo',
+      time: '23:59',
+      location: '線上',
+      description: '學費、雜費等行政費用繳交',
+      organizer: '學務處',
+      priority: '中',
+      isCompleted: false,
+      link: 'https://payment.example.com',
+      linkText: '前往繳費系統'
+    },
+    { 
+      id: 3,
       date: 25, 
       title: '數學期中考', 
-      color: 'error.main', 
-      type: 'exam',
+      color: '#f44336', 
+      type: 'event',
       time: '09:00',
       location: '考試大樓 B203',
-      description: '期中考試，考試範圍涵蓋第1-6章，請準備計算機和文具。',
-      organizer: '數學老師 張老師'
+      description: '第三章至第五章範圍',
+      organizer: '數學老師',
+      priority: '高',
+      isCompleted: false,
+      link: 'https://exam.example.com',
+      linkText: '查看考試須知'
     },
     { 
-      date: 26, 
-      title: '體育課', 
-      color: 'success.main', 
-      type: 'class',
-      time: '14:00',
-      location: '體育館',
-      description: '籃球基本技巧練習，請穿著運動服和運動鞋。',
-      organizer: '體育老師 陳老師'
-    },
-    { 
+      id: 4,
       date: 28, 
-      title: '家長會', 
-      color: 'warning.main', 
-      type: 'meeting',
-      time: '14:00',
-      location: '學校禮堂',
-      description: '與家長討論學生學習狀況和未來規劃，歡迎家長踴躍參與。',
-      organizer: '學務處'
+      title: '繳交英文作業', 
+      color: '#ff9800', 
+      type: 'todo',
+      time: '23:59',
+      location: '線上',
+      description: '英文作文練習',
+      organizer: '英文老師',
+      priority: '中',
+      isCompleted: false,
+      link: 'https://classroom.google.com',
+      linkText: '前往 Google Classroom'
     },
     { 
+      id: 5,
       date: 30, 
-      title: '校外教學', 
-      color: 'info.main', 
-      type: 'activity',
-      time: '08:30',
-      location: '科學博物館',
-      description: '參觀科學博物館，探索科學奧秘，請攜帶學習單和筆記本。',
-      organizer: '自然老師 林老師'
-    },
+      title: '班親會', 
+      color: '#2196f3', 
+      type: 'event',
+      time: '18:30',
+      location: '學校禮堂',
+      description: '討論班級事務',
+      organizer: '班導師',
+      priority: '低',
+      isCompleted: false
+    }
 ];
 
 const Dashboard: React.FC = () => {
@@ -311,6 +324,8 @@ const Dashboard: React.FC = () => {
 
   const getEventTypeText = (type: string) => {
     switch (type) {
+      case 'todo': return '待辦事項';
+      case 'event': return '活動';
       case 'meeting': return '會議';
       case 'test': return '測驗';
       case 'exam': return '考試';
@@ -876,6 +891,16 @@ const Dashboard: React.FC = () => {
           <Box sx={{ py: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Chip 
+                label={selectedEvent.isCompleted ? '已完成' : '待完成'} 
+                color={selectedEvent.isCompleted ? 'success' : 'default'} 
+                size="small" 
+              />
+              <Chip 
+                label={selectedEvent.priority || '中'} 
+                color={selectedEvent.priority === '高' ? 'error' : selectedEvent.priority === '中' ? 'warning' : 'info'} 
+                size="small" 
+              />
+              <Chip 
                 label={getEventTypeText(selectedEvent.type)} 
                 color="primary" 
                 size="small" 
@@ -904,6 +929,24 @@ const Dashboard: React.FC = () => {
             <Typography variant="body2" color="text.secondary" paragraph>
               {selectedEvent.description}
             </Typography>
+
+            {selectedEvent.link && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  相關連結
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  href={selectedEvent.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ textTransform: 'none' }}
+                >
+                  {selectedEvent.linkText || selectedEvent.link}
+                </Button>
+              </Box>
+            )}
 
             <Typography variant="subtitle2" gutterBottom>
               主辦者

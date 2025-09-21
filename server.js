@@ -25,6 +25,12 @@ app.use('/api/discussions', require('./routes/discussions'));
 app.use('/api/semesters', require('./routes/semesters'));
 app.use('/api/users', require('./routes/users'));
 
+// Calendar routes with debug
+console.log('Loading calendar routes...');
+const calendarRoutes = require('./routes/calendar');
+app.use('/api/calendar', calendarRoutes);
+console.log('Calendar routes loaded successfully');
+
 // Socket.io for real-time messaging
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
