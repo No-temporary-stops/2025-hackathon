@@ -351,14 +351,14 @@ const CalendarPage: React.FC = () => {
     if (event.isCompleted) {
       return '#4caf50';
     }
-    switch(event.priority) {
-      case "高":
+      switch(event.priority) {
+        case "高":
         return '#f44336';
-      case "中":
+        case "中":
         return '#ff9800';
-      case "低":
+        case "低":
         return '#2196f3';
-      default:
+        default:
         return '#2196f3';
     }
   };
@@ -408,19 +408,19 @@ const CalendarPage: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
             disabled={!selectedSemester}
-            sx={{ borderRadius: 3 }}
-          >
-            新增事項
-          </Button>
-        </Box>
+          sx={{ borderRadius: 3 }}
+        >
+          新增事項
+        </Button>
+      </Box>
       </Box>
 
       {!selectedSemester && (
@@ -472,15 +472,15 @@ const CalendarPage: React.FC = () => {
             >
               月曆
             </Button>
-            <Button
+              <Button
               variant={calendarView === 'events' ? 'contained' : 'outlined'}
               startIcon={<EventNote />}
               onClick={() => setCalendarView('events')}
-              size="small"
-              sx={{ borderRadius: 2 }}
-            >
+                size="small"
+                sx={{ borderRadius: 2 }}
+              >
               近期活動
-            </Button>
+              </Button>
           </Box>
         </Box>
       </Paper>
@@ -491,9 +491,20 @@ const CalendarPage: React.FC = () => {
         {calendarView === 'calendar' && (
           <>
             {/* 星期標題 */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
-              {['日', '一', '二', '三', '四', '五', '六'].map(day => (
-                <Box key={day} sx={{ textAlign: 'center', py: 0.5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, mb: 1 }}>
+              {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+                <Box 
+                  key={day} 
+                  sx={{ 
+                    textAlign: 'center', 
+                    py: 1, 
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderTop: 'none',
+                    borderLeft: index === 0 ? '1px solid' : 'none',
+                    borderRight: 'none'
+                  }}
+                >
                   <Typography variant="caption" color="text.secondary" fontWeight="medium">
                     {day}
                   </Typography>
@@ -502,7 +513,7 @@ const CalendarPage: React.FC = () => {
             </Box>
             
             {/* 月曆網格 */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0 }}>
               {/* 月初前的空白格子 */}
               {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
                 <Box 
@@ -511,7 +522,9 @@ const CalendarPage: React.FC = () => {
                     minHeight: 100,
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderRadius: 1,
+                    borderTop: 'none',
+                    borderLeft: i === 0 ? '1px solid' : 'none',
+                    borderRight: 'none',
                     bgcolor: 'action.hover',
                     opacity: 0.3
                   }} 
@@ -530,7 +543,9 @@ const CalendarPage: React.FC = () => {
                       minHeight: 100,
                       border: '1px solid',
                       borderColor: dayEvents.length > 0 ? 'primary.main' : 'divider',
-                      borderRadius: 1,
+                      borderTop: 'none',
+                      borderLeft: (getFirstDayOfMonth(currentDate) + i) % 7 === 0 ? '1px solid' : 'none',
+                      borderRight: 'none',
                       cursor: 'pointer',
                       bgcolor: isToday(day, currentDate) ? 'primary.light' : 'background.paper',
                       p: 0.5,
@@ -583,18 +598,21 @@ const CalendarPage: React.FC = () => {
                             }
                           }}
                         >
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
+                          <Typography
+                            variant="caption"
+                            title={event.title}
+                            sx={{
                               fontSize: '0.65rem',
                               fontWeight: 500,
                               lineHeight: 1.2,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap',
+                              maxWidth: '100%',
+                              display: 'block'
                             }}
                           >
-                            {event.title}
+                            {event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title}
                           </Typography>
                         </Box>
                       ))}
@@ -652,8 +670,19 @@ const CalendarPage: React.FC = () => {
                     }}
                   >
                     <Box sx={{ width: 8, height: 8, bgcolor: getEventColor(event), borderRadius: '50%' }} />
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="body2" fontWeight="medium">{event.title}</Typography>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography 
+                        variant="body2" 
+                        fontWeight="medium"
+                        title={event.title}
+                        sx={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {event.title}
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {event.start.toLocaleDateString('zh-TW')} {event.start.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                       </Typography>
@@ -829,8 +858,17 @@ const CalendarPage: React.FC = () => {
               }}
             >
               <Box sx={{ width: 12, height: 12, bgcolor: getEventColor(event), borderRadius: '50%' }} />
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2" fontWeight="medium">
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography 
+                  variant="subtitle2" 
+                  fontWeight="medium"
+                  title={event.title}
+                  sx={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   {event.title}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -957,7 +995,7 @@ const CalendarPage: React.FC = () => {
             </DialogContent>
             <DialogActions sx={{ p: 3, gap: 1 }}>
               <Button
-                onClick={() => toggleComplete(selectedEvent.id)}
+                onClick={() => toggleComplete(selectedEvent._id)}
                 variant="contained"
                 color={selectedEvent.isCompleted ? 'warning' : 'success'}
                 startIcon={selectedEvent.isCompleted ? <AccessTime /> : <CheckIcon />}
@@ -965,7 +1003,7 @@ const CalendarPage: React.FC = () => {
                 {selectedEvent.isCompleted ? '標記未完成' : '標記完成'}
               </Button>
               <Button
-                onClick={() => deleteEvent(selectedEvent.id)}
+                onClick={() => deleteEvent(selectedEvent._id)}
                 variant="contained"
                 color="error"
                 startIcon={<DeleteIcon />}

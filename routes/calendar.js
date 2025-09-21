@@ -11,7 +11,7 @@ router.get('/events', auth, async (req, res) => {
   try {
     const { semesterId, start, end } = req.query;
     
-    let query = { user: req.userId };
+    let query = { createdBy: req.userId };
     
     // 如果指定了學期，添加學期過濾
     if (semesterId) {
@@ -94,7 +94,6 @@ router.post('/events', auth, [
       link: link || '',
       linkText: linkText || '',
       semester: semesterId,
-      user: req.userId,
       createdBy: req.userId
     });
 
@@ -138,7 +137,7 @@ router.put('/events/:id', auth, [
     // 查找事件並驗證權限
     const event = await CalendarEvent.findOne({
       _id: id,
-      user: req.userId
+      createdBy: req.userId
     });
 
     if (!event) {
@@ -185,7 +184,7 @@ router.delete('/events/:id', auth, async (req, res) => {
 
     const event = await CalendarEvent.findOne({
       _id: id,
-      user: req.userId
+      createdBy: req.userId
     });
 
     if (!event) {
@@ -208,7 +207,7 @@ router.patch('/events/:id/toggle-complete', auth, async (req, res) => {
 
     const event = await CalendarEvent.findOne({
       _id: id,
-      user: req.userId
+      createdBy: req.userId
     });
 
     if (!event) {

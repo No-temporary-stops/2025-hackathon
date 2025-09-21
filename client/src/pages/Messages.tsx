@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Container,
   Grid,
@@ -69,6 +69,83 @@ interface Conversation {
   };
   unreadCount: number;
 }
+
+// 優化的消息組件
+const MessageItem = React.memo<{
+  message: Message;
+  isOwnMessage: boolean;
+  formatTime: (date: string) => string;
+}>(({ message, isOwnMessage, formatTime }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+      mb: 2,
+      px: 1,
+    }}
+  >
+    <Box
+      sx={{
+        maxWidth: '70%',
+        minWidth: '120px',
+        p: 2,
+        borderRadius: isOwnMessage ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+        bgcolor: isOwnMessage ? 'primary.main' : 'grey.100',
+        color: isOwnMessage ? 'white' : 'text.primary',
+        position: 'relative',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        '&::before': isOwnMessage ? {
+          content: '""',
+          position: 'absolute',
+          bottom: 0,
+          right: -8,
+          width: 0,
+          height: 0,
+          borderLeft: '8px solid',
+          borderLeftColor: 'primary.main',
+          borderTop: '8px solid transparent',
+          borderBottom: '8px solid transparent',
+        } : {
+          content: '""',
+          position: 'absolute',
+          bottom: 0,
+          left: -8,
+          width: 0,
+          height: 0,
+          borderRight: '8px solid',
+          borderRightColor: 'grey.100',
+          borderTop: '8px solid transparent',
+          borderBottom: '8px solid transparent',
+        }
+      }}
+    >
+      <Typography 
+        variant="body1" 
+        sx={{ 
+          wordBreak: 'break-word',
+          lineHeight: 1.4,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+          hyphens: 'auto',
+        }}
+      >
+        {message.content}
+      </Typography>
+      <Typography
+        variant="caption"
+        sx={{
+          color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'text.secondary',
+          display: 'block',
+          mt: 0.5,
+          textAlign: isOwnMessage ? 'right' : 'left',
+          fontSize: '0.75rem',
+        }}
+      >
+        {formatTime(message.createdAt)}
+      </Typography>
+    </Box>
+  </Box>
+));
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
@@ -171,7 +248,9 @@ const Messages: React.FC = () => {
     },
     {
       enabled: !!selectedUserId && !!selectedSemester,
-      refetchInterval: 5000, // Refetch every 5 seconds
+      staleTime: 30000, // 30 seconds
+      cacheTime: 300000, // 5 minutes
+      refetchOnWindowFocus: false,
     }
   );
 
@@ -189,52 +268,80 @@ const Messages: React.FC = () => {
     }
   );
 
+  // Mark conversation as read mutation
+  const markAsReadMutation = useMutation(
+    async ({ userId, semesterId }: { userId: string; semesterId: string }) => {
+      const response = await api.put(`/messages/read-conversation/${userId}/${semesterId}`);
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['conversations', selectedSemester]);
+        queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
+      },
+      onError: (error: any) => {
+        console.error('Mark as read error:', error);
+      }
+    }
+  );
+
   // Join room when user is selected
   useEffect(() => {
     if (selectedUserId && selectedSemester) {
       const roomId = `${selectedUserId}-${selectedSemester}`;
       joinRoom(roomId);
+      
+      // Mark conversation as read when user opens it
+      markAsReadMutation.mutate({
+        userId: selectedUserId,
+        semesterId: selectedSemester
+      });
+      
       return () => leaveRoom(roomId);
     }
-  }, [selectedUserId, selectedSemester, joinRoom, leaveRoom]);
+  }, [selectedUserId, selectedSemester, joinRoom, leaveRoom, markAsReadMutation]);
 
   // Listen for new messages
-  useEffect(() => {
-    const handleNewMessage = (data: any) => {
-      if (data.senderId !== user?.id) {
-        queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
-        queryClient.invalidateQueries(['conversations', selectedSemester]);
-      }
-    };
+  const handleNewMessage = useCallback((data: any) => {
+    if (data.senderId !== user?.id) {
+      queryClient.invalidateQueries(['messages', selectedUserId, selectedSemester]);
+      queryClient.invalidateQueries(['conversations', selectedSemester]);
+    }
+  }, [user?.id, selectedUserId, selectedSemester, queryClient]);
 
+  useEffect(() => {
     onMessage(handleNewMessage);
-  }, [onMessage, selectedUserId, selectedSemester, user?.id, queryClient]);
+  }, [onMessage, handleNewMessage]);
 
   // Listen for typing indicators
-  useEffect(() => {
-    const handleTyping = (data: any) => {
-      if (data.userId !== user?.id) {
-        setTypingUser(data.userName);
-        setIsTyping(true);
-        
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-        
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false);
-          setTypingUser(null);
-        }, 3000);
+  const handleTyping = useCallback((data: any) => {
+    if (data.userId !== user?.id) {
+      setTypingUser(data.userName);
+      setIsTyping(true);
+      
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
-    };
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+        setTypingUser(null);
+      }, 3000);
+    }
+  }, [user?.id]);
 
+  useEffect(() => {
     onTyping(handleTyping);
-  }, [onTyping, user?.id]);
+  }, [onTyping, handleTyping]);
 
   // Auto scroll to bottom
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messagesData]);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messagesData, scrollToBottom]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUserId || !selectedSemester) return;
@@ -279,23 +386,22 @@ const Messages: React.FC = () => {
     }
   };
 
-  const formatMessageTime = (dateString: string) => {
+  const formatMessageTime = useCallback((dateString: string) => {
     return format(new Date(dateString), 'HH:mm');
-  };
+  }, []);
 
-  const filteredConversations = conversationsData?.filter((conv: Conversation) =>
-    conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredConversations = useMemo(() => 
+    conversationsData?.filter((conv: Conversation) =>
+      conv.user.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [], [conversationsData, searchTerm]
+  );
 
-  // Debug conversations data
-  useEffect(() => {
-    console.log('Conversations data:', conversationsData);
-    console.log('Filtered conversations:', filteredConversations);
-  }, [conversationsData, filteredConversations]);
 
-  const selectedUser = conversationsData?.find((conv: Conversation) => 
-    conv.user._id === selectedUserId
-  )?.user;
+  const selectedUser = useMemo(() => 
+    conversationsData?.find((conv: Conversation) => 
+      conv.user._id === selectedUserId
+    )?.user, [conversationsData, selectedUserId]
+  );
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -456,73 +562,12 @@ const Messages: React.FC = () => {
                       {messagesData.map((message: Message) => {
                         const isOwnMessage = message.sender._id === user?.id;
                         return (
-                          <Box
+                          <MessageItem
                             key={message._id}
-                            sx={{
-                              display: 'flex',
-                              justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
-                              mb: 2,
-                              px: 1,
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                maxWidth: '70%',
-                                minWidth: '120px',
-                                p: 2,
-                                borderRadius: isOwnMessage ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                                bgcolor: isOwnMessage ? 'primary.main' : 'grey.100',
-                                color: isOwnMessage ? 'white' : 'text.primary',
-                                position: 'relative',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                '&::before': isOwnMessage ? {
-                                  content: '""',
-                                  position: 'absolute',
-                                  bottom: 0,
-                                  right: -8,
-                                  width: 0,
-                                  height: 0,
-                                  borderLeft: '8px solid',
-                                  borderLeftColor: 'primary.main',
-                                  borderTop: '8px solid transparent',
-                                  borderBottom: '8px solid transparent',
-                                } : {
-                                  content: '""',
-                                  position: 'absolute',
-                                  bottom: 0,
-                                  left: -8,
-                                  width: 0,
-                                  height: 0,
-                                  borderRight: '8px solid',
-                                  borderRightColor: 'grey.100',
-                                  borderTop: '8px solid transparent',
-                                  borderBottom: '8px solid transparent',
-                                }
-                              }}
-                            >
-                              <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                  wordBreak: 'break-word',
-                                  lineHeight: 1.4,
-                                }}
-                              >
-                                {message.content}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'text.secondary',
-                                  display: 'block',
-                                  mt: 0.5,
-                                  textAlign: isOwnMessage ? 'right' : 'left',
-                                  fontSize: '0.75rem',
-                                }}
-                              >
-                                {formatMessageTime(message.createdAt)}
-                              </Typography>
-                            </Box>
-                          </Box>
+                            message={message}
+                            isOwnMessage={isOwnMessage}
+                            formatTime={formatMessageTime}
+                          />
                         );
                       })}
                       {isTyping && typingUser && (

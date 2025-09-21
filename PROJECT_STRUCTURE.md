@@ -20,22 +20,26 @@
 
 ## 🚀 快速啟動
 
-### Windows 用戶
+### 一鍵啟動（推薦）
 ```bash
-# 推薦：使用智能啟動腳本
-scripts\setup\start-app.bat
+# Windows 用戶
+start.bat
 
-# 簡單啟動
-scripts\setup\start.bat
+# Linux/Mac 用戶
+./start.sh
 ```
 
-### Linux/Mac 用戶
+### 手動啟動（進階用戶）
 ```bash
-# 推薦：使用智能啟動腳本
-./scripts/setup/start-app.sh
+# 1. 啟動 MongoDB
+docker run -d --name teacher-student-mongodb-dev -p 27017:27017 mongo:6.0
 
-# 簡單啟動
-./scripts/setup/start.sh
+# 2. 安裝依賴
+npm install
+cd client && npm install && cd ..
+
+# 3. 啟動應用
+npm run dev
 ```
 
 ## 📋 詳細結構說明
@@ -52,14 +56,15 @@ client/
 │   │   ├── AuthContext.tsx      # 認證狀態管理
 │   │   └── SocketContext.tsx    # WebSocket 連接管理
 │   ├── 📁 pages/                # 頁面組件
-│   │   ├── Calendar.tsx         # 日曆頁面
-│   │   ├── Dashboard.tsx        # 儀表板
+│   │   ├── Dashboard.tsx        # 儀表板（包含行事曆預覽）
 │   │   ├── DiscussionDetail.tsx # 討論詳情
 │   │   ├── Discussions.tsx      # 討論列表
 │   │   ├── Login.tsx            # 登入頁面
 │   │   ├── Messages.tsx         # 訊息中心 ⭐
 │   │   ├── Profile.tsx          # 個人資料
-│   │   └── Register.tsx         # 註冊頁面
+│   │   ├── Register.tsx         # 註冊頁面
+│   │   ├── Calendar.tsx         # 完整行事曆頁面
+│   │   └── CommonLinks.tsx      # 常用連結頁面
 │   ├── 📁 services/             # API 服務
 │   │   └── api.ts               # HTTP 請求配置
 │   ├── 📁 styles/               # 樣式文件
@@ -79,13 +84,15 @@ server/
 │   ├── Discussion.js            # 討論模型
 │   ├── Message.js               # 訊息模型
 │   ├── Semester.js              # 學期模型
-│   └── User.js                  # 用戶模型
+│   ├── User.js                  # 用戶模型
+│   └── CalendarEvent.js         # 行事曆事件模型
 ├── 📁 routes/                   # API 路由
 │   ├── auth.js                  # 認證路由
 │   ├── discussions.js           # 討論路由
 │   ├── messages.js              # 訊息路由 ⭐
 │   ├── semesters.js             # 學期路由
-│   └── users.js                 # 用戶路由
+│   ├── users.js                 # 用戶路由
+│   └── calendar.js              # 行事曆路由
 ├── 📁 scripts/
 │   ├── 📁 setup/                # 環境設置
 │   │   ├── start-app.bat        # Windows 智能啟動

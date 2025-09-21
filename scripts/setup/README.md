@@ -1,47 +1,45 @@
-# 環境設置和啟動腳本
+# 環境設置腳本
 
-這個資料夾包含所有環境設置和啟動相關的檔案。
+本目錄包含環境設置相關的腳本和配置文件。
 
-## 檔案說明
+## 文件說明
 
-### 啟動腳本
-- `start-app.bat` - Windows 主要啟動腳本（推薦）
-- `start-app.sh` - Linux/Mac 主要啟動腳本
-- `start.bat` - 簡單啟動腳本（Windows）
-- `start-simple.bat` - 簡化啟動腳本（Windows）
-- `start-dev.bat` - 開發環境啟動腳本（Windows）
-- `start.sh` - 簡單啟動腳本（Linux/Mac）
-- `start-simple.sh` - 簡化啟動腳本（Linux/Mac）
-
-### 環境配置文件
-- `healthcheck.js` - 健康檢查腳本
+### 環境設置
+- `healthcheck.js` - Docker 健康檢查腳本
 - `mongo-init.js` - MongoDB 初始化腳本
-- `Procfile` - Heroku 部署配置
+- `Procfile` - 生產環境進程配置
 
-## 使用方法
+### 一鍵啟動
+項目根目錄的啟動腳本：
+- `start.bat` - Windows 一鍵啟動腳本
+- `start.sh` - Linux/Mac 一鍵啟動腳本
 
-### Windows 用戶
+## 使用方式
+
+### 推薦方式（一鍵啟動）
 ```bash
-# 推薦使用（自動檢查依賴並啟動）
-scripts\setup\start-app.bat
+# Windows
+start.bat
 
-# 或使用簡單版本
-scripts\setup\start.bat
+# Linux/Mac
+./start.sh
 ```
 
-### Linux/Mac 用戶
-```bash
-# 推薦使用（自動檢查依賴並啟動）
-./scripts/setup/start-app.sh
+### 手動設置
+1. 啟動 MongoDB: `docker run -d --name teacher-student-mongodb-dev -p 27017:27017 mongo:6.0`
+2. 安裝依賴: `npm install && cd client && npm install && cd ..`
+3. 啟動應用: `npm run dev`
 
-# 或使用簡單版本
-./scripts/setup/start.sh
-```
+## 腳本功能
 
-## 注意事項
+### 一鍵啟動腳本
+- 自動檢查 Docker 安裝和運行狀態
+- 自動啟動 MongoDB 容器
+- 自動安裝所有依賴
+- 創建環境配置文件
+- 啟動應用程式
 
-1. 確保已安裝 Node.js (v14 或更高版本)
-2. 確保 MongoDB 正在運行
-3. 首次運行會自動安裝依賴包
-4. 後端服務運行在 http://localhost:5000
-5. 前端服務運行在 http://localhost:3000
+### 健康檢查
+- 監控 MongoDB 連接狀態
+- 自動重試機制
+- 適合生產環境部署

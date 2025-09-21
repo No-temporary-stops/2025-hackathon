@@ -45,11 +45,6 @@ const calendarEventSchema = new mongoose.Schema({
     ref: 'Semester',
     required: true
   },
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -69,7 +64,7 @@ calendarEventSchema.pre('save', function(next) {
 });
 
 // 添加索引以提高查詢性能
-calendarEventSchema.index({ user: 1, start: 1 });
+calendarEventSchema.index({ createdBy: 1, start: 1 });
 calendarEventSchema.index({ semester: 1, start: 1 });
 
 module.exports = mongoose.model('CalendarEvent', calendarEventSchema);
